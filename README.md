@@ -18,14 +18,14 @@
 
 `claim-season-pass.lua` -- 🟢 [raw script](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/claim-season-pass.lua)
 
-`event-egg.lua` -- 🟢 will walk to bubble selling platform first [raw file](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/event-egg.lua)
+`event-egg.lua` -- 🟢 will walk to bubble selling platform first [raw script](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/event-egg.lua)
 
-`fast-open.lua` -- 🟢 spams r [raw file](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/fast-open.lua)
+`fast-open.lua` -- 🟢 spams r [raw script](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/fast-open.lua)
 
-`generic-fps-booster.lua` -- 🟠 idek [raw file](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/generic-fps-booster.lua)
+`generic-fps-booster.lua` -- 🟠 idek [raw script](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/generic-fps-booster.lua)
 
-`hide-minigame-ui.lua` -- 🟢 works as intended but is basically useless [raw file](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/hide-minigame-ui.lua)
+`hide-minigame-ui.lua` -- 🟢 works as intended but is basically useless [raw script](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/hide-minigame-ui.lua)
 
-`season-pass-grinder.lua` -- 🟢 config is needed to change the default egg (the egg that you hatch when you are done with quests) it is currently set to Infinity Egg [raw file](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/season-pass-grinder.lua)
+`season-pass-grinder.lua` -- 🟢 config is needed to change the default egg (the egg that you hatch when you are done with quests) it is currently set to Infinity Egg [raw script](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/season-pass-grinder.lua)
 
-`webhook.lua` -- 🟠 it works but config is needed to refine certain issues concerning multiple webhooks sending for the same pet [raw file](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/webhook.lua)
+`webhook.lua` -- 🟠 it works but config is needed to refine certain issues concerning multiple webhooks sending for the same pet [raw script](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/webhook.lua)
