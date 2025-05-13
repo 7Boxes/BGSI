@@ -1,31 +1,31 @@
-# Current functionality
+# BGSI Scripts Repository
 
-🟢 - working
+A collection of utility scripts for [Game Name] with various functionalities. All scripts are open source and may include extra features for personal use.
 
-🟠 - may need updating/configs
+## Status Legend
 
-🔴 - patched/broken
+- 🟢 **Working** - Fully functional
+- 🟠 **Needs Attention** - May require updates/configurations
+- 🔴 **Broken/Patched** - Currently not working
 
-*all* scripts are open source, and may include some extra functions (`event-egg.lua` will walk to the bubble-selling platform then to the event egg, you will also need to edit the egg hatching function as it is currently set to 200M Egg). This is just because these scripts are for my personal use.
+## Scripts Overview
 
-`auto-claw-machine.lua` -- 🟠 works but may not collect all items [raw script](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/auto-claw-machine.lua)
+| Script | Status | Description | Raw Link |
+|--------|--------|-------------|----------|
+| [`auto-claw-machine.lua`](#) | 🟠 | Works but may not collect all items | [View Raw](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/auto-claw-machine.lua) |
+| [`cart-ride-pet-match.lua`](#) | 🟠 | Functional, but requires editing `wait(x)` to rotate evenly between minigames | [View Raw](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/cart-ride-pet-match.lua) |
+| [`claim-chests.lua`](#) | 🟢 | Claims available chests | [View Raw](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/claim-chests.lua) |
+| [`claim-playtime.lua`](#) | 🟢 | Claims playtime rewards | [View Raw](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/claim-playtime.lua) |
+| [`claim-season-pass.lua`](#) | 🟢 | Claims season pass rewards | [View Raw](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/claim-season-pass.lua) |
+| [`event-egg.lua`](#) | 🟢 | Walks to bubble-selling platform first (Note: Egg hatching function set to 200M Egg) | [View Raw](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/event-egg.lua) |
+| [`fast-open.lua`](#) | 🟢 | Spams 'r' key for fast opening | [View Raw](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/fast-open.lua) |
+| [`generic-fps-booster.lua`](#) | 🟠 | Won't be updating this ever | [View Raw](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/generic-fps-booster.lua) |
+| [`hide-minigame-ui.lua`](#) | 🟢 | Works as intended but limited utility | [View Raw](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/hide-minigame-ui.lua) |
+| [`season-pass-grinder.lua`](#) | 🟢 | Requires config to change default egg (currently set to Infinity Egg) | [View Raw](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/season-pass-grinder.lua) |
+| [`webhook.lua`](#) | 🟠 | Functional but needs config refinement for multiple webhook notifications | [View Raw](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/webhook.lua) |
 
-`cart-ride-pet-match.lua` -- 🟠 works, but you'll need to edit wait(x) to rotate evenly between the two minigames [raw script](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/cart-ride-pet-match.lua)
+## Notes
 
-`claim-chests.lua` -- 🟢 [raw script](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/claim-chests.lua)
-
-`claim-playtime.lua` -- 🟢 [raw script](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/claim-playtime.lua)
-
-`claim-season-pass.lua` -- 🟢 [raw script](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/claim-season-pass.lua)
-
-`event-egg.lua` -- 🟢 will walk to bubble selling platform first [raw script](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/event-egg.lua)
-
-`fast-open.lua` -- 🟢 spams r [raw script](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/fast-open.lua)
-
-`generic-fps-booster.lua` -- 🟠 idek [raw script](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/generic-fps-booster.lua)
-
-`hide-minigame-ui.lua` -- 🟢 works as intended but is basically useless [raw script](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/hide-minigame-ui.lua)
-
-`season-pass-grinder.lua` -- 🟢 config is needed to change the default egg (the egg that you hatch when you are done with quests) it is currently set to Infinity Egg [raw script](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/season-pass-grinder.lua)
-
-`webhook.lua` -- 🟠 it works but config is needed to refine certain issues concerning multiple webhooks sending for the same pet [raw script](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/webhook.lua)
+- All scripts are open source and may include extra personal-use functions
+- Some scripts require configuration adjustments for optimal performance
+- The `event-egg.lua` script includes additional movement functionality (to bubble-selling platform)
