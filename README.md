@@ -29,3 +29,4 @@ A collection of utility scripts for BGSI with various functionalities. All scrip
 - All scripts are open source and may include extra personal-use functions
 - Some scripts require configuration adjustments for optimal performance
 - The `event-egg.lua` script includes additional movement functionality (to bubble-selling platform)
+- `season-pass-grinder.lua` is obfuscated
