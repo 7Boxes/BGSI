@@ -1,3 +1,5 @@
+# BGSI Utility Scripts Collection
+
 A collection of utility scripts for BGSI with various functionalities. All scripts are open source and may include extra features for personal use.
 
 - @jajtxs_ on dc
@@ -22,6 +24,7 @@ A collection of utility scripts for BGSI with various functionalities. All scrip
 | [`generic-fps-booster.lua`](#) | 🟠 | Won't be updating this ever | [View Raw](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/generic-fps-booster.lua) |
 | [`hide-minigame-ui.lua`](#) | 🟢 | Works as intended but limited utility | [View Raw](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/hide-minigame-ui.lua) |
 | [`season-pass-grinder.lua`](#) | 🟢 | Requires config to change default egg (currently set to Infinity Egg) | [View Raw](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/season-pass-grinder.lua) |
+| [`stars-shop.lua`](#) | 🟢 | Buys a specified item in the star shop | [View Raw](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/stars-shop.lua) |
 | [`webhook.lua`](#) | 🟠 | Functional but needs config refinement for multiple webhook notifications | [View Raw](https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/webhook.lua) |
 
 ## Notes
