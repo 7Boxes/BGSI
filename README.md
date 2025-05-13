@@ -1,6 +1,6 @@
-# BGSI Scripts Repository
+A collection of utility scripts for BGSI with various functionalities. All scripts are open source and may include extra features for personal use.
 
-A collection of utility scripts for [Game Name] with various functionalities. All scripts are open source and may include extra features for personal use.
+- @jajtxs_ on dc
 
 ## Status Legend
 
