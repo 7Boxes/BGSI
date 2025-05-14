@@ -34,51 +34,31 @@ local function isCompleted(questPath)
 end
 
 local function listQuests()
-    local highestReward = 0
-    local nextQuestText = ""
-    local nextQuestRaw = ""
+    local availableQuests = {}
 
-    print("=== Daily Quests ===")
-    for i = 1, 3 do
-        local questPath = LocalPlayer.PlayerGui.ScreenGui.Season.Frame.Content.Challenges.Daily.List["daily-challenge-"..i]
-        if questPath and questPath.Content and questPath.Content.Label then
-            local questText = questPath.Content.Label.Text or ""
-            local rewardText = (questPath.Content.Reward and questPath.Content.Reward.Label and questPath.Content.Reward.Label.Text) or "0"
-            local rewardValue = parseReward(rewardText)
-            local status = isCompleted(questPath) and "(Completed)" or ""
-
-            if not isCompleted(questPath) then
-                if rewardValue > highestReward or (rewardValue == highestReward and math.random() > 0.5) then
-                    highestReward = rewardValue
-                    nextQuestText = questText:lower()
-                    nextQuestRaw = questText
+    for _, type in ipairs({"Daily", "Hourly"}) do
+        for i = 1, 3 do
+            local questPath = LocalPlayer.PlayerGui.ScreenGui.Season.Frame.Content.Challenges[type].List[type:lower().."-challenge-"..i]
+            if questPath and questPath.Content and questPath.Content.Label then
+                local questText = questPath.Content.Label.Text or ""
+                local rewardText = (questPath.Content.Reward and questPath.Content.Reward.Label and questPath.Content.Reward.Label.Text) or "0"
+                if not isCompleted(questPath) then
+                    table.insert(availableQuests, {
+                        rawText = questText,
+                        lowerText = questText:lower(),
+                        reward = parseReward(rewardText),
+                        gui = questPath
+                    })
                 end
             end
-            print(i .. ". " .. questText .. " " .. status)
         end
     end
 
-    print("\n=== Hourly Quests ===")
-    for i = 1, 3 do
-        local questPath = LocalPlayer.PlayerGui.ScreenGui.Season.Frame.Content.Challenges.Hourly.List["hourly-challenge-"..i]
-        if questPath and questPath.Content and questPath.Content.Label then
-            local questText = questPath.Content.Label.Text or ""
-            local rewardText = (questPath.Content.Reward and questPath.Content.Reward.Label and questPath.Content.Reward.Label.Text) or "0"
-            local rewardValue = parseReward(rewardText)
-            local status = isCompleted(questPath) and "(Completed)" or ""
+    table.sort(availableQuests, function(a, b)
+        return a.reward > b.reward
+    end)
 
-            if not isCompleted(questPath) then
-                if rewardValue > highestReward or (rewardValue == highestReward and math.random() > 0.5) then
-                    highestReward = rewardValue
-                    nextQuestText = questText:lower()
-                    nextQuestRaw = questText
-                end
-            end
-            print(i .. ". " .. questText .. " " .. status)
-        end
-    end
-
-    return nextQuestText, nextQuestRaw
+    return availableQuests
 end
 
 local function teleportTo(destination)
@@ -87,23 +67,46 @@ local function teleportTo(destination)
 end
 
 local function moveTo(position)
-    HumanoidRootPart.CFrame = CFrame.new(position)
+    Character:MoveTo(position)
     task.wait(1)
 end
 
-local function hatchEgg(eggName, quantity)
-    RemoteEvent:FireServer("HatchEgg", eggName, quantity)
+local function handleBubbleQuest()
+    print("Running bubble blowing quest...")
+    for i = 1, 1000 do
+        RemoteEvent:FireServer("BlowBubble")
+        task.wait(0.5)
+    end
+end
+
+local function handleCoinQuest()
+    print("Running coin collection quest...")
+    local teleport = ReplicatedStorage.Shared.Remotes.Teleport
+
+    teleport:FireServer("Rainbow")
+    task.wait(1)
+    Character:MoveTo(Vector3.new(73.35, 15971.72, 10.04))
+    task.wait(2)
+
+    teleport:FireServer("Nightmare")
+    task.wait(1)
+    Character:MoveTo(Vector3.new(-22.53, 10146.00, 141.16))
+    task.wait(1)
+    Character:MoveTo(Vector3.new(-57.48, 10146.00, 67.87))
+    task.wait(1)
+
+    teleport:FireServer("Rainbow")
+    task.wait(1)
+    Character:MoveTo(Vector3.new(73.35, 15971.72, 10.04))
     task.wait(1)
 end
 
-local function handleEggQuest(questText)
+local function handleEggQuest(questText, rawText, questGui)
     local count, name = string.match(questText:lower(), "^hatch (%d+) (.+)")
     if not count or not name then return false end
 
-    -- Clean name: remove "pets", "eggs", or "egg" and trim whitespace
     name = name:gsub("pets", ""):gsub("eggs", ""):gsub("egg", ""):gsub("^%s*(.-)%s*$", "%1")
 
-    -- Try to match against known EggData keys
     local matchedEggName = nil
     for egg in pairs(EggData) do
         if egg:lower():find(name) then
@@ -112,68 +115,92 @@ local function handleEggQuest(questText)
         end
     end
 
-    if matchedEggName then
-        local data = EggData[matchedEggName]
-        teleportTo(data.teleport)
-        moveTo(data.position)
-        hatchEgg(matchedEggName, tonumber(count))
-        return true
-    else
+    if not matchedEggName then
+        warn("Could not match egg for quest: " .. rawText)
         return false
     end
+
+    local data = EggData[matchedEggName]
+    teleportTo(data.teleport)
+    moveTo(data.position)
+
+    print("Hatching " .. matchedEggName .. " until quest is completed...")
+    while not isCompleted(questGui) do
+        RemoteEvent:FireServer("HatchEgg", matchedEggName, tonumber(count))
+        task.wait(0.1)
+    end
+
+    print("Completed quest: " .. rawText)
+    return true
 end
 
 local function runQuest()
-    local quest, rawText = listQuests()
-    if not quest then return end
+    local quests = listQuests()
+    local completed = {}
 
-    if quest:find("collect") and quest:find("coin") then
-        print("Running coin collection quest...")
-        local teleport = ReplicatedStorage.Shared.Remotes.Teleport
+    while #quests > 0 do
+        local picked = nil
+        for _, quest in ipairs(quests) do
+            local text = quest.lowerText
 
-        teleport:FireServer("Rainbow") 
-        task.wait(1)
-        Character:MoveTo(Vector3.new(73.35, 15971.72, 10.04))
+            if text:find("bubble") then
+                picked = quest
+                break
+            end
+        end
+
+        if not picked then
+            for _, quest in ipairs(quests) do
+                if quest.lowerText:find("collect") and quest.lowerText:find("coin") then
+                    picked = quest
+                    break
+                end
+            end
+        end
+
+        if not picked then
+            for _, quest in ipairs(quests) do
+                if quest.lowerText:find("hatch") then
+                    picked = quest
+                    break
+                end
+            end
+        end
+
+        if not picked then
+            break
+        end
+
+        print("Running quest: " .. picked.rawText)
+
+        if picked.lowerText:find("bubble") then
+            handleBubbleQuest()
+        elseif picked.lowerText:find("collect") and picked.lowerText:find("coin") then
+            handleCoinQuest()
+        elseif picked.lowerText:find("hatch") then
+            local success = handleEggQuest(picked.lowerText, picked.rawText, picked.gui)
+            if not success then
+                print("Failed to run hatch quest: " .. picked.rawText)
+            end
+        end
 
         task.wait(2)
-        teleport:FireServer("Nightmare")
-        task.wait(1)
-        Character:MoveTo(Vector3.new(-22.53, 10146.00, 141.16))
-        task.wait(1)
-        Character:MoveTo(Vector3.new(-57.48, 10146.00, 67.87))
-
-        while true do
-            teleport:FireServer("Rainbow")
-            task.wait(3)
-            Character:MoveTo(Vector3.new(73.35, 15971.72, 10.04))
-            task.wait(3)
-            teleport:FireServer("Nightmare")
-            task.wait(3)
-            Character:MoveTo(Vector3.new(-22.53, 10146.00, 141.16))
-            task.wait(1)
-            Character:MoveTo(Vector3.new(-57.48, 10146.00, 67.87))
-            task.wait(3)
-        end
-
-    elseif quest:find("bubble") then
-        print("Running bubble blowing quest...")
-        while true do
-            RemoteEvent:FireServer("BlowBubble")
-            task.wait(0.5)
-        end
-
-    elseif quest:find("hatch") then
-        print("Running egg hatching quest...")
-        local success = handleEggQuest(quest)
-        if success then
-            print("Egg hatching in progress...")
-        else
-            print("Unsupported egg type: " .. rawText)
-        end
-    else
-        print("Quest type not automated: " .. rawText)
+        quests = listQuests()
     end
+
+    print("All quests completed. Running board script...")
+
+    getgenv().boardSettings = {
+        UseGoldenDice = true,
+        GoldenDiceDistance = 1,
+        DiceDistance = 6,
+        GiantDiceDistance = 10,
+    }
+
+    getgenv().remainingItems = {}
+
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/IdiotHub/Scripts/refs/heads/main/BGSI/main.lua"))()
 end
 
--- Start script
+-- Start the script
 runQuest()
