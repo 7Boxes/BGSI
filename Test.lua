@@ -105,7 +105,8 @@ local function handleEggQuest(questText)
         local count2, name = string.match(questText, "^hatch (%d+) (.+)$")
         if count2 and name then
             count = count2
-            eggName = name
+            eggName = name:gsub("Eggs$", "Egg")
+
         end
     end
 
