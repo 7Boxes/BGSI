@@ -97,27 +97,30 @@ local function hatchEgg(eggName, quantity)
 end
 
 local function handleEggQuest(questText)
-    local count, rarity = string.match(questText, "^hatch (%d+) (.+) pets$")
-    local eggName = nil
-    if count and rarity then
-        eggName = rarity .. " Egg"
-    else
-        local count2, name = string.match(questText, "^hatch (%d+) (.+)$")
-        if count2 and name then
-            count = count2
-            eggName = name:gsub("Eggs$", "Egg")
+    local count, name = string.match(questText:lower(), "^hatch (%d+) (.+)")
+    if not count or not name then return false end
 
+    -- Clean name: remove "pets", "eggs", or "egg" and trim whitespace
+    name = name:gsub("pets", ""):gsub("eggs", ""):gsub("egg", ""):gsub("^%s*(.-)%s*$", "%1")
+
+    -- Try to match against known EggData keys
+    local matchedEggName = nil
+    for egg in pairs(EggData) do
+        if egg:lower():find(name) then
+            matchedEggName = egg
+            break
         end
     end
 
-    if eggName and EggData[eggName] then
-        local data = EggData[eggName]
+    if matchedEggName then
+        local data = EggData[matchedEggName]
         teleportTo(data.teleport)
         moveTo(data.position)
-        hatchEgg(eggName, tonumber(count))
+        hatchEgg(matchedEggName, tonumber(count))
         return true
+    else
+        return false
     end
-    return false
 end
 
 local function runQuest()
