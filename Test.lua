@@ -4,10 +4,17 @@ local function listQuests()
     local nextQuestType = nil
     local nextQuestIndex = 0
     
-    -- Helper function to parse reward value
+    -- Fixed reward parsing
     local function parseReward(rewardText)
-        return tonumber(rewardText:gsub("[^%d]", "")) or 0
+        local cleaned = rewardText:gsub("[^%d]", "")  -- First get cleaned string
+        return tonumber(cleaned) or 0  -- Then convert to number
     end
+    
+    -- Rest of the script remains the same as previous version
+    -- ... (keep all other code identical from the last script)
+    
+    -- Only showing modified parts for brevity
+end
     
     -- Helper function to check completion
     local function isCompleted(questPath)
