@@ -1,214 +1,378 @@
---// Configuration
-local HATCH_COUNT = 4 -- Number of pets to hatch per quest
+-- Auto Quest Script Configuration
+local CONFIG = {
+    BubbleRate = 0.1,          -- How often to blow bubbles (seconds)
+    HatchRate = 0.1,           -- How often to hatch eggs (seconds)
+    HatchQuantity = 4,         -- Number of eggs to hatch at once (configurable)
+    CollectionWaitTime = 5,    -- Wait time between collection attempts (seconds)
+    TweenDuration = 10,        -- Time to tween between locations (seconds)
+    CheckInterval = 5,         -- How often to check quest progress (seconds)
+    PostCompletionWait = 5,    -- Wait after completing a quest type (seconds)
+    FloatHeight = 5,           -- How high to float above ground (studs)
+    WalkSpeed = 16             -- Movement speed when floating
+}
 
---// Services
+-- Hub Locations
+local HUBS = {
+    Bubble = Vector3.new(76.26, 9.20, -111.97),
+    Egg = Vector3.new(-105.23, 19.22, -26.92),
+    Collection = {
+        teleportRemote = {
+            "Teleport",
+            "Workspace.Worlds.The Overworld.Islands.Zen.lsland.Portal.Spawn"
+        },
+        movementPath = {
+            Vector3.new(67.74, 15971.72, 9.15),
+            Vector3.new(-64.94, 15971.72, -2.92),
+            Vector3.new(-35.75, 15971.72, 35.63)
+        }
+    },
+    OverworldReturn = {
+        "Teleport",
+        "Workspace.Worlds.The Overworld.PortalSpawn"
+    }
+}
+
+-- Egg Locations
+local EGG_DATA = {
+    ["Common Egg"] = Vector3.new(-12.40, 15.66, -81.87),
+    ["Spotted Egg"] = Vector3.new(-12.63, 15.61, -70.52),
+    ["Iceshard Egg"] = Vector3.new(-12.57, 16.50, -59.62),
+    ["Spikey Egg"] = Vector3.new(-127.92, 16.25, 9.43),
+    ["Magma Egg"] = Vector3.new(-137.79, 15.58, 3.08),
+    ["Crystal Egg"] = Vector3.new(-144.64, 15.98, -5.11),
+    ["Lunar Egg"] = Vector3.new(-148.69, 15.88, -15.29),
+    ["Void Egg"] = Vector3.new(-149.83, 15.75, -26.63),
+    ["Hell Egg"] = Vector3.new(-149.49, 15.57, -36.71),
+    ["Nightmare Egg"] = Vector3.new(-146.16, 14.51, -47.57),
+    ["Rainbow Egg"] = Vector3.new(-139.45, 16.20, -55.40),
+    ["Showman Egg"] = Vector3.new(-130.84, 19.16, -63.48),
+    ["Mining Egg"] = Vector3.new(-121.83, 16.45, -67.70),
+    ["Cyber Egg"] = Vector3.new(-92.24, 16.11, -66.20),
+    ["Infinity Egg"] = HUBS.Egg  -- Infinity Egg is at the hub
+}
+
+-- Services
 local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
---// Player References
 local LocalPlayer = Players.LocalPlayer
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local ScreenGui = PlayerGui:WaitForChild("ScreenGui")
 
---// Remote Events (Safe Load)
-local function safeWaitForChild(parent, childName, timeout)
-    local result = parent:WaitForChild(childName, timeout)
-    if not result then
-        warn("Failed to find child:", childName)
-    end
-    return result
+-- Network Setup
+local Network = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Framework"):WaitForChild("Network")
+local RemoteEvent = Network:WaitForChild("Remote"):WaitForChild("RemoteEvent")
+
+-- Utility Functions
+local function GetCharacter()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local humanoid = char:FindFirstChild("Humanoid")
+    return char, root, humanoid
 end
 
-local Shared = safeWaitForChild(ReplicatedStorage, "Shared", 10)
-local Framework = safeWaitForChild(Shared, "Framework", 10)
-local Network = safeWaitForChild(Framework, "Network", 10)
-local Remote = safeWaitForChild(Network, "Remote", 10)
-local RemoteEvent = safeWaitForChild(Remote, "RemoteEvent", 10)
-
-local RemotesFolder = safeWaitForChild(Shared, "Remotes", 10)
-local TeleportRemote = safeWaitForChild(RemotesFolder, "Teleport", 10)
-
-if not RemoteEvent or not TeleportRemote then
-    error("❌ Missing required RemoteEvents. Script stopped.")
+local function FloatTo(position)
+    local char, root, humanoid = GetCharacter()
+    if not (char and root and humanoid) then return false end
+    
+    -- Adjust position to float height
+    local floatPosition = Vector3.new(position.X, position.Y + CONFIG.FloatHeight, position.Z)
+    
+    -- Set movement speed
+    humanoid.WalkSpeed = CONFIG.WalkSpeed
+    
+    -- Create and play tween
+    local tween = TweenService:Create(
+        root,
+        TweenInfo.new(CONFIG.TweenDuration, Enum.EasingStyle.Linear),
+        {CFrame = CFrame.new(floatPosition)}
+    )
+    tween:Play()
+    return tween
 end
 
---// Egg Data
-local EggData = {
-    ["Spikey Egg"] = { teleport = "Workspace.Worlds.The Overworld.Islands.Floating Island.Island.Portal.Spawn", position = Vector3.new(-6.55, 429.51, 162.53) },
-    ["Crystal Egg"] = { teleport = "Workspace.Worlds.The Overworld.Islands.Outer Space.Island.Portal.Spawn", position = Vector3.new(-24.26, 2671.33, 18.94) },
-    ["Magma Egg"] = { teleport = "Workspace.Worlds.The Overworld.Islands.Outer Space.Island.Portal.Spawn", position = Vector3.new(-23.27, 2670.76, 8.20) },
-    ["Lunar Egg"] = { teleport = "Workspace.Worlds.The Overworld.Islands.Twilight.Island.Portal.Spawn", position = Vector3.new(-58.20, 6868.44, 75.15) },
-    ["Void Egg"] = { teleport = "Workspace.Worlds.The Overworld.Islands.The Void.Island.Portal.Spawn", position = Vector3.new(9.54, 10153.89, 190.56) },
-    ["Hell Egg"] = { teleport = "Workspace.Worlds.The Overworld.Islands.The Void.Island.Portal.Spawn", position = Vector3.new(-6.56, 10153.95, 197.27) },
-    ["Nightmare Egg"] = { teleport = "Workspace.Worlds.The Overworld.Islands.The Void.Island.Portal.Spawn", position = Vector3.new(-21.36, 10152.93, 187.51) },
-    ["Rainbow Egg"] = { teleport = "Workspace.Worlds.The Overworld.Islands.Zen.Island.Portal.Spawn", position = Vector3.new(-35.94, 15978.93, 50.24) },
-    ["Showman Egg"] = { teleport = "Workspace.Worlds.Minigame Paradise.Portal.Spawn", position = Vector3.new(9945.38, 35.80, 213.75) },
-    ["Game Egg"] = { teleport = "Workspace.Worlds.Minigame Paradise.Portal.Spawn", position = Vector3.new(9827.93, 34.46, 171.15) },
-    ["Mining Egg"] = { teleport = "Workspace.Worlds.Minigame Paradise.Islands.Minecart Forest.Island.Portal.Spawn", position = Vector3.new(9924.43, 7688.74, 244.19) },
-    ["Cyber Egg"] = { teleport = "Workspace.Worlds.Minigame Paradise.Islands.Robot Factory.Island.Portal.Spawn", position = Vector3.new(9919.21, 13416.94, 242.35) },
-    ["Common Egg"] = { teleport = "Workspace.Worlds.The Overworld.Portal.Spawn", position = Vector3.new(-12.14, 15.39, -81.50) },
-    ["Spotted Egg"] = { teleport = "Workspace.Worlds.The Overworld.Portal.Spawn", position = Vector3.new(-13.19, 15.13, -71.07) },
-    ["Iceshard Egg"] = { teleport = "Workspace.Worlds.The Overworld.Portal.Spawn", position = Vector3.new(-12.31, 16.31, -60.13) },
-    ["Infinity Egg"] = { teleport = "Workspace.Worlds.The Overworld.Portal.Spawn", position = Vector3.new(-106.37, 19.31, -26.72) }
-}
+local function TeleportToCollection()
+    RemoteEvent:FireServer(unpack(HUBS.Collection.teleportRemote))
+    wait(3) -- Wait for teleport to complete
+end
 
---// Noclip Setup
-local Clip = nil
-local Noclip = nil
-function noclip()
-    Clip = false
-    local function disableCollision()
-        if not Clip and LocalPlayer.Character then
-            for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
-                if part:IsA("BasePart") and part.CanCollide then
-                    part.CanCollide = false
+local function ReturnToOverworld()
+    RemoteEvent:FireServer(unpack(HUBS.OverworldReturn))
+    wait(3) -- Wait for teleport to complete
+end
+
+-- Quest Detection Functions
+local function GetQuests()
+    local quests = {
+        bubbles = {},
+        eggs = {},
+        collections = {}
+    }
+    
+    for _, questType in ipairs({"Daily", "Hourly"}) do
+        for i = 1, 3 do
+            local questFrame = ScreenGui.Season.Frame.Content.Challenges[questType].List[questType:lower().."-challenge-"..i]
+            if questFrame then
+                local quest = questFrame.Content
+                if quest and quest.Label and quest.Bar and quest.Bar.Label then
+                    local text = quest.Label.Text
+                    local percent = tonumber(quest.Bar.Label.Text:match("%d+")) or 0
+                    
+                    if percent < 100 then
+                        -- Bubble quest detection
+                        if text:lower():find("bubble") then
+                            table.insert(quests.bubbles, {
+                                path = quest,
+                                text = text,
+                                percent = percent
+                            })
+                        -- Egg quest detection
+                        elseif text:find("Hatch") then
+                            local eggType = text:match("Hatch %d+ (.+) Eggs?")
+                            if eggType then
+                                -- Handle plural/singular egg names
+                                eggType = eggType:gsub("s$", ""):gsub("ies$", "y")
+                                eggType = eggType .. " Egg"
+                                
+                                -- Check if we have this egg type
+                                if EGG_DATA[eggType] then
+                                    table.insert(quests.eggs, {
+                                        path = quest,
+                                        text = text,
+                                        percent = percent,
+                                        eggType = eggType
+                                    })
+                                end
+                            end
+                        -- Collection quest detection
+                        elseif text:find("Collect") or text:find("collection") then
+                            table.insert(quests.collections, {
+                                path = quest,
+                                text = text,
+                                percent = percent
+                            })
+                        end
+                    end
                 end
             end
         end
     end
-    Noclip = RunService.Stepped:Connect(disableCollision)
+    
+    return quests
 end
 
-function clip()
-    if Noclip then Noclip:Disconnect() end
-    Clip = true
-end
-
-noclip()
-
---// Helpers
-local function parseReward(text)
-    local cleaned = text:gsub("%D", "")
-    return tonumber(cleaned) or 0
-end
-
-local function isCompleted(questPath)
-    return questPath.Completed and questPath.Completed.Visible
-end
-
-local function listQuests()
-    local quests = {}
-    local function scanType(typeName)
-        for i = 1, 3 do
-            local path = LocalPlayer.PlayerGui.ScreenGui.Season.Frame.Content.Challenges[typeName].List[typeName:lower().."-challenge-"..i]
-            if path and path.Content and path.Content.Label then
-                table.insert(quests, {
-                    text = path.Content.Label.Text or "",
-                    reward = parseReward(path.Content.Reward and path.Content.Reward.Label.Text or "0"),
-                    completed = isCompleted(path)
-                })
-            end
+-- Quest Execution Functions
+local function RunBubbleQuests()
+    local quests = GetQuests().bubbles
+    if #quests == 0 then return false end
+    
+    print("Starting", #quests, "bubble quest(s)")
+    
+    -- Move to bubble hub
+    FloatTo(HUBS.Bubble)
+    wait(CONFIG.TweenDuration)
+    
+    -- Start bubble blowing coroutine
+    local bubbleCoroutine = coroutine.create(function()
+        while true do
+            RemoteEvent:FireServer({"BlowBubble"})
+            wait(CONFIG.BubbleRate)
         end
-    end
-
-    scanType("Daily")
-    scanType("Hourly")
-
-    local active = {}
-    for _, quest in ipairs(quests) do
-        if not quest.completed then
-            table.insert(active, quest)
-        end
-    end
-
-    table.sort(active, function(a, b)
-        local function priority(text)
-            text = text:lower()
-            if text:find("bubble") then return 1
-            elseif text:find("collect") and text:find("coin") then return 2
-            elseif text:find("hatch") then return 3
-            else return 4 end
-        end
-        return priority(a.text) < priority(b.text) or (priority(a.text) == priority(b.text) and a.reward > b.reward)
     end)
-
-    return active
-end
-
-local function teleportTo(destination)
-    RemoteEvent:FireServer("Teleport", destination)
-    task.wait(1)
-end
-
-local function moveTo(position)
-    HumanoidRootPart.CFrame = CFrame.new(position)
-    task.wait(1)
-end
-
-local function hatchEgg(eggName, quantity)
-    RemoteEvent:FireServer("HatchEgg", eggName, quantity)
-end
-
-local function isQuestCompleted(questText)
-    for _, quest in ipairs(listQuests()) do
-        if quest.text == questText then return false end
+    coroutine.resume(bubbleCoroutine)
+    
+    -- Monitor progress
+    local startTime = os.time()
+    while #GetQuests().bubbles > 0 do
+        for _, q in ipairs(GetQuests().bubbles) do
+            print("[Bubble] "..q.text..": "..q.percent.."%")
+        end
+        
+        -- Occasionally re-position to prevent AFK
+        if os.time() - startTime > 120 then
+            FloatTo(HUBS.Bubble)
+            startTime = os.time()
+        end
+        
+        wait(CONFIG.CheckInterval)
     end
+    
+    -- Clean up
+    coroutine.close(bubbleCoroutine)
+    print("Bubble quests completed!")
+    wait(CONFIG.PostCompletionWait)
     return true
 end
 
---// Quest Handlers
-local function handleBubbleQuest(questText)
-    print("➡️ Bubble quest started")
-    while not isQuestCompleted(questText) do
-        RemoteEvent:FireServer("BlowBubble")
-        task.wait(0.5)
+local function RunEggQuests()
+    local quests = GetQuests().eggs
+    if #quests == 0 then return false end
+    
+    -- Group by egg type
+    local eggGroups = {}
+    for _, q in ipairs(quests) do
+        eggGroups[q.eggType] = eggGroups[q.eggType] or {}
+        table.insert(eggGroups[q.eggType], q)
     end
-end
-
-local function handleCoinQuest(questText)
-    print("➡️ Coin quest started")
-    local locations = {
-        { world = "Rainbow", position = Vector3.new(73.35, 15971.72, 10.04) },
-        { world = "Nightmare", position = Vector3.new(-22.53, 10146.00, 141.16) },
-        { world = "Nightmare", position = Vector3.new(-57.48, 10146.00, 67.87) }
-    }
-
-    local i = 1
-    while not isQuestCompleted(questText) do
-        local loc = locations[i]
-        TeleportRemote:FireServer(loc.world)
-        task.wait(1)
-        Character:MoveTo(loc.position)
-        task.wait(3)
-        i = i % #locations + 1
-    end
-end
-
-local function handleEggQuest(questText)
-    print("➡️ Egg quest started")
-    local count, rarity = string.match(questText:lower(), "^hatch (%d+) (.+) pets$")
-    local eggName
-
-    if count and rarity then
-        eggName = (rarity == "unique") and "Infinity Egg" or rarity:sub(1, 1):upper() .. rarity:sub(2) .. " Egg"
-    else
-        local count2, name = string.match(questText:lower(), "^hatch (%d+) (.+) egg$")
-        if count2 then eggName = name:sub(1, 1):upper() .. name:sub(2) .. " Egg" end
-    end
-
-    if eggName and EggData[eggName] then
-        local egg = EggData[eggName]
-        teleportTo(egg.teleport)
-        moveTo(egg.position)
-
-        while not isQuestCompleted(questText) do
-            hatchEgg(eggName, HATCH_COUNT)
-            task.wait(3)
+    
+    -- Process each egg type
+    for eggType, typeQuests in pairs(eggGroups) do
+        print("\nStarting", #typeQuests, eggType, "quest(s)")
+        
+        -- Move to egg location
+        FloatTo(EGG_DATA[eggType])
+        wait(CONFIG.TweenDuration)
+        
+        -- Start hatching coroutine
+        local eggCoroutine = coroutine.create(function()
+            local args = {"HatchEgg", eggType, CONFIG.HatchQuantity}
+            while true do
+                RemoteEvent:FireServer(unpack(args))
+                wait(CONFIG.HatchRate)
+            end
+        end)
+        coroutine.resume(eggCoroutine)
+        
+        -- Monitor progress
+        local startTime = os.time()
+        while true do
+            local allComplete = true
+            for _, q in ipairs(typeQuests) do
+                q.percent = tonumber(q.path.Bar.Label.Text:match("%d+")) or 0
+                if q.percent < 100 then
+                    allComplete = false
+                    print("[Egg] "..q.text..": "..q.percent.."%")
+                end
+            end
+            
+            if allComplete then break end
+            
+            -- Occasionally re-position to prevent AFK
+            if os.time() - startTime > 120 then
+                FloatTo(EGG_DATA[eggType])
+                startTime = os.time()
+            end
+            
+            wait(CONFIG.CheckInterval)
         end
-    else
-        warn("⚠️ Unknown egg:", questText)
+        
+        -- Clean up
+        coroutine.close(eggCoroutine)
+        print(eggType, "quests completed!")
+        wait(CONFIG.PostCompletionWait)
     end
+    
+    return true
 end
 
---// Start Main Loop
-for _, quest in ipairs(listQuests()) do
-    local text = quest.text:lower()
-    if text:find("bubble") then
-        handleBubbleQuest(quest.text)
-    elseif text:find("collect") and text:find("coin") then
-        handleCoinQuest(quest.text)
-    elseif text:find("hatch") then
-        handleEggQuest(quest.text)
+local function RunCollectionQuests()
+    local quests = GetQuests().collections
+    if #quests == 0 then return false end
+    
+    print("Starting", #quests, "collection quest(s)")
+    
+    -- Teleport to collection area
+    TeleportToCollection()
+    wait(3)
+    
+    -- Collection loop
+    while #GetQuests().collections > 0 do
+        -- Trigger collection remote
+        RemoteEvent:FireServer({"Collect"})
+        
+        -- Move through collection path
+        for _, point in ipairs(HUBS.Collection.movementPath) do
+            FloatTo(point)
+            wait(CONFIG.TweenDuration)
+        end
+        
+        -- Check progress
+        for _, q in ipairs(GetQuests().collections) do
+            print("[Collection] "..q.text..": "..q.percent.."%")
+        end
+        
+        wait(CONFIG.CollectionWaitTime)
     end
+    
+    print("Collection quests completed!")
+    
+    -- Return to egg hub
+    ReturnToOverworld()
+    wait(3)
+    FloatTo(HUBS.Egg)
+    wait(CONFIG.TweenDuration)
+    
+    -- Check for Infinity Egg quests
+    local infinityQuests = {}
+    for _, q in ipairs(GetQuests().eggs) do
+        if q.eggType == "Infinity Egg" then
+            table.insert(infinityQuests, q)
+        end
+    end
+    
+    if #infinityQuests > 0 then
+        print("Starting Infinity Egg quests")
+        
+        -- Start hatching coroutine
+        local infinityCoroutine = coroutine.create(function()
+            local args = {"HatchEgg", "Infinity Egg", CONFIG.HatchQuantity}
+            while true do
+                RemoteEvent:FireServer(unpack(args))
+                wait(CONFIG.HatchRate)
+            end
+        end)
+        coroutine.resume(infinityCoroutine)
+        
+        -- Monitor progress
+        local startTime = os.time()
+        while #infinityQuests > 0 do
+            for _, q in ipairs(infinityQuests) do
+                q.percent = tonumber(q.path.Bar.Label.Text:match("%d+")) or 0
+                print("[Infinity Egg] "..q.text..": "..q.percent.."%")
+            end
+            
+            -- Occasionally re-position to prevent AFK
+            if os.time() - startTime > 120 then
+                FloatTo(HUBS.Egg)
+                startTime = os.time()
+            end
+            
+            wait(CONFIG.CheckInterval)
+            infinityQuests = {}
+            for _, q in ipairs(GetQuests().eggs) do
+                if q.eggType == "Infinity Egg" then
+                    table.insert(infinityQuests, q)
+                end
+            end
+        end
+        
+        -- Clean up
+        coroutine.close(infinityCoroutine)
+        print("Infinity Egg quests completed!")
+    end
+    
+    wait(CONFIG.PostCompletionWait)
+    return true
+end
+
+-- Main Loop
+while true do
+    -- Check for quests in priority order
+    if RunBubbleQuests() then
+        -- If we completed bubble quests, check for more quests immediately
+        continue
+    elseif RunEggQuests() then
+        -- If we completed egg quests, check for more quests immediately
+        continue
+    elseif RunCollectionQuests() then
+        -- If we completed collection quests, check for more quests immediately
+        continue
+    end
+    
+    -- If no quests were completed, wait before checking again
+    print("No active quests detected. Waiting...")
+    wait(CONFIG.CheckInterval)
 end
