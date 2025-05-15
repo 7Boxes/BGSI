@@ -305,56 +305,49 @@ local function RunCollectionQuests()
     FloatTo(HUBS.Egg)
     wait(CONFIG.TweenDuration)
     
-    -- Check for Infinity Egg quests
-    local infinityQuests = {}
-    for _, q in ipairs(GetQuests().eggs) do
-        if q.eggType == "Infinity Egg" then
-            table.insert(infinityQuests, q)
-        end
-    end
-    
-    if #infinityQuests < 1 then
-        print("Starting Infinity Egg quests")
-        
-        -- Start hatching coroutine
-        local infinityCoroutine = coroutine.create(function()
-            local args = {"HatchEgg", "Infinity Egg", CONFIG.HatchQuantity}
-            while true do
-                RemoteEvent:FireServer(unpack(args))
-                wait(CONFIG.HatchRate)
-            end
-        end)
-        coroutine.resume(infinityCoroutine)
-        
-        -- Monitor progress
-        local startTime = os.time()
-        while #infinityQuests > 0 do
-            for _, q in ipairs(infinityQuests) do
-                q.percent = tonumber(q.path.Bar.Label.Text:match("%d+")) or 0
-                print("[Infinity Egg] "..q.text..": "..q.percent.."%")
-            end
-            
-            -- Occasionally re-position to prevent AFK
-            if os.time() - startTime > 120 then
-                FloatTo(HUBS.Egg)
-                startTime = os.time()
-            end
-            
-            wait(CONFIG.CheckInterval)
-            infinityQuests = {}
-            for _, q in ipairs(GetQuests().eggs) do
-                if q.eggType == "Infinity Egg" then
-                    table.insert(infinityQuests, q)
-                end
-            end
-        end
-        
-        -- Clean up
-        coroutine.close(infinityCoroutine)
-        print("Infinity Egg quests completed!")
-    end
-    
     wait(CONFIG.PostCompletionWait)
+    return true
+end
+
+local function HatchInfinityEgg()
+    -- Move to egg hub if not already there
+    local char, root = GetCharacter()
+    if char and root then
+        local currentPos = root.Position
+        local distance = (currentPos - HUBS.Egg).Magnitude
+        if distance > 10 then
+            FloatTo(HUBS.Egg)
+            wait(CONFIG.TweenDuration)
+        end
+    end
+    
+    print("No active quests detected. Hatching Infinity Egg...")
+    
+    -- Start hatching coroutine
+    local infinityCoroutine = coroutine.create(function()
+        local args = {"HatchEgg", "Infinity Egg", CONFIG.HatchQuantity}
+        while true do
+            RemoteEvent:FireServer(unpack(args))
+            wait(CONFIG.HatchRate)
+        end
+    end)
+    coroutine.resume(infinityCoroutine)
+    
+    -- Monitor for new quests
+    local startTime = os.time()
+    while #GetQuests().bubbles == 0 and #GetQuests().eggs == 0 and #GetQuests().collections == 0 do
+        -- Occasionally re-position to prevent AFK
+        if os.time() - startTime > 120 then
+            FloatTo(HUBS.Egg)
+            startTime = os.time()
+        end
+        
+        wait(CONFIG.CheckInterval)
+    end
+    
+    -- Clean up
+    coroutine.close(infinityCoroutine)
+    print("Stopping Infinity Egg hatching - quests detected")
     return true
 end
 
@@ -370,9 +363,8 @@ while true do
     elseif RunCollectionQuests() then
         -- If we completed collection quests, check for more quests immediately
         continue
+    else
+        -- If no quests were found, hatch Infinity Egg
+        HatchInfinityEgg()
     end
-    
-    -- If no quests were completed, wait before checking again
-    print("No active quests detected. Waiting...")
-    wait(CONFIG.CheckInterval)
 end
