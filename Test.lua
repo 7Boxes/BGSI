@@ -313,7 +313,7 @@ local function RunCollectionQuests()
         end
     end
     
-    if #infinityQuests = 0 then
+    if #infinityQuests < 1 then
         print("Starting Infinity Egg quests")
         
         -- Start hatching coroutine
