@@ -5,7 +5,7 @@ function BGSI:Initialize(config)
     self.Config = config or {}
     
     print("[BGSI] Initializing - scripts will begin in 5 seconds")
-    wait(10) -- Initial delay
+    wait(0.1) -- Initial delay
 
     local scripts = {
         {
@@ -92,7 +92,7 @@ function BGSI:Initialize(config)
                 print("[BGSI] SUCCESS: "..script.name.." ran without errors")
             end
             
-            wait(5) -- Delay between scripts
+            wait(0.1) -- Delay between scripts
         else
             print("[BGSI] Skipping disabled script: "..script.name)
         end
