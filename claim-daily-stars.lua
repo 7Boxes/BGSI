@@ -9,5 +9,5 @@ local args = {"DailyRewardClaimStars"}
 
 while true do
     remotePath:FireServer(unpack(args))
-    wait(1) -- Wait for 1 second before firing again
+    wait(1) 
 end
