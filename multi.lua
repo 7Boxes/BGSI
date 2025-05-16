@@ -2,6 +2,10 @@ local BGSI = {}
 
 function BGSI:Initialize(config)
     self.Config = config or {}
+    
+    print("[BGSI] Initializing...")
+    wait(5) 
+
     local scripts = {
         { name = "Auto Potion", url = "https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/auto-potion.lua", enabled = self.Config.AutoPotion and self.Config.AutoPotion.Enabled },
         { name = "Auto Shiny", url = "https://raw.githubusercontent.com/7Boxes/BGSI/refs/heads/main/auto-shiny.lua", enabled = self.Config.AutoShiny and self.Config.AutoShiny.Enabled },
@@ -14,24 +18,23 @@ function BGSI:Initialize(config)
 
     for _, script in ipairs(scripts) do
         if script.enabled then
-            print("[BGSI] Loading: " .. script.name)
+            print("[BGSI] Attempting: " .. script.name)
+            
             local success, err = pcall(function()
-                loadstring(game:HttpGet(script.url, true))()
+                local scriptSrc = game:HttpGet(script.url, true)
+                loadstring(scriptSrc)()
             end)
             
-            if success then
-                print("[BGSI] Success: " .. script.name)
-            else
-                warn("[BGSI] Failed: " .. script.name .. " | Error: " .. tostring(err))
+            if not success then
+                warn("[BGSI] Error in "..script.name..": "..tostring(err))
+                print("[BGSI] Continuing to next script...")
             end
             
             wait(5) 
-        else
-            print("[BGSI] Skipping: " .. script.name)
         end
     end
     
-    print("[BGSI] All enabled scripts processed!")
+    print("[BGSI] Done!")
 end
 
 return BGSI
