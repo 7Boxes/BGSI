@@ -5,7 +5,7 @@ function BGSI:Initialize(config)
     self.Config = config or {}
     
     print("[BGSI] Initializing - scripts will begin in 5 seconds")
-    wait(5) -- Initial delay
+    wait(10) -- Initial delay
 
     local scripts = {
         {
