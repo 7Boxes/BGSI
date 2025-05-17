@@ -39,33 +39,20 @@ local RemoteEvent = ReplicatedStorage:WaitForChild("Shared")
     :WaitForChild("Framework"):WaitForChild("Network")
     :WaitForChild("Remote"):WaitForChild("RemoteEvent")
 
--- GUI setup
+-- GUI setup using your working code
 local function getQuestInfo()
-    local gui = player.PlayerGui:FindFirstChild("ScreenGui")
-    if not gui then return nil, "0%" end
+    local gui = player:WaitForChild("PlayerGui"):WaitForChild("ScreenGui")
+    local competitiveFrame = gui:WaitForChild("Competitive"):WaitForChild("Frame")
+    local tasksFolder = competitiveFrame:WaitForChild("Content"):WaitForChild("Tasks")
     
-    local competitive = gui:FindFirstChild("Competitive")
-    if not competitive then return nil, "0%" end
-    
-    local frame = competitive:FindFirstChild("Frame")
-    if not frame then return nil, "0%" end
-    
-    local content = frame:FindFirstChild("Content")
-    if not content then return nil, "0%" end
-    
-    local tasks = content:FindFirstChild("Tasks")
-    if not tasks then return nil, "0%" end
-    
-    for _, task in ipairs(tasks:GetChildren()) do
-        if task.Name == "Template" then
-            local contentFrame = task:FindFirstChild("Content")
-            if contentFrame then
-                local label = contentFrame:FindFirstChild("Label")
-                local barLabel = contentFrame:FindFirstChild("Bar") and contentFrame.Bar:FindFirstChild("Label")
-                
-                if label and barLabel then
-                    return label.Text, barLabel.Text
-                end
+    for _, template in ipairs(tasksFolder:GetChildren()) do
+        if template.Name == "Template" and template:FindFirstChild("Content") then
+            local content = template.Content
+            local label = content:FindFirstChild("Label")
+            local barLabel = content:FindFirstChild("Bar") and content.Bar:FindFirstChild("Label")
+            
+            if label and barLabel then
+                return label.Text, barLabel.Text
             end
         end
     end
@@ -132,6 +119,16 @@ local function doNeonEgg()
     wait(5)
 end
 
+-- Extract egg name from quest text
+local function getEggName(questText)
+    for eggName in pairs(EGG_DATA) do
+        if string.find(questText, eggName) then
+            return eggName
+        end
+    end
+    return nil
+end
+
 -- Main function to handle egg quests
 local function handleEggQuest()
     local questText, progress = getQuestInfo()
@@ -139,16 +136,11 @@ local function handleEggQuest()
         return -- Not an egg quest
     end
     
-    -- Extract egg name from quest text (e.g., "Hatch 5 Showman Eggs" → "Showman")
-    local eggName
-    for name in pairs(EGG_DATA) do
-        if string.find(questText, name) then
-            eggName = name
-            break
-        end
-    end
-    
+    local eggName = getEggName(questText)
     if not eggName then return end
+    
+    print("Current quest:", questText)
+    print("Egg to hatch:", eggName)
     
     -- Special case for Neon Egg
     if eggName == "Neon" then
@@ -185,6 +177,9 @@ end
 
 -- Main loop
 while true do
-    handleEggQuest()
+    local success, err = pcall(handleEggQuest)
+    if not success then
+        warn("Error in handleEggQuest:", err)
+    end
     wait(1) -- Check for new quests every second
 end
