@@ -1,9 +1,9 @@
 -- Configuration
-local HATCH_COUNT = 6 -- Number to send in hatch remote
-local FINAL_HATCH_DELAY = 5 -- Keep hatching after 100% for this many seconds
-local HATCH_INTERVAL = 0.2 -- Time between hatch attempts
-local WALK_SPEED = 16 -- Normal walking speed
-local DEBUG_LOGGING = true -- Set to false to reduce console spam
+local HATCH_COUNT = 6 -- Number for hatch remote
+local FINAL_HATCH_DELAY = 5 -- Extra seconds after 100%
+local HATCH_INTERVAL = 0.2 -- Time between hatches
+local WALK_SPEED = 32 -- Faster walking speed
+local DEBUG_LOGGING = true -- Detailed logging
 
 -- Egg data with coordinates
 local EGG_DATA = {
@@ -35,54 +35,69 @@ local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 humanoid.WalkSpeed = WALK_SPEED
 
+-- Enable walking through walls
+local function enableNoClip()
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+        end
+    end
+    character.ChildAdded:Connect(function(child)
+        if child:IsA("BasePart") then
+            child.CanCollide = false
+        end
+    end)
+end
+enableNoClip()
+
 -- Remote setup
 local RemoteEvent = ReplicatedStorage:WaitForChild("Shared")
     :WaitForChild("Framework"):WaitForChild("Network")
     :WaitForChild("Remote"):WaitForChild("RemoteEvent")
 
--- Logging function
+-- Logging system
 local function log(message, isError)
-    local timestamp = os.date("%X")
-    local prefix = isError and "[ERROR]" or "[DEBUG]"
+    local timestamp = os.date("%H:%M:%S")
+    local prefix = isError and "[ERROR]" or "[INFO]"
     print(string.format("%s [%s] %s", prefix, timestamp, message))
 end
 
 -- Get current quest info
 local function getCurrentQuest()
-    local gui = player.PlayerGui:FindFirstChild("ScreenGui")
-    if not gui then return nil, nil, nil end
+    local success, gui = pcall(function() return player.PlayerGui.ScreenGui end)
+    if not success then log("Failed to find ScreenGui", true) return nil, nil, nil end
     
     local competitive = gui:FindFirstChild("Competitive")
-    if not competitive then return nil, nil, nil end
+    if not competitive then log("Competitive not found", true) return nil, nil, nil end
     
     local frame = competitive:FindFirstChild("Frame")
-    if not frame then return nil, nil, nil end
+    if not frame then log("Frame not found", true) return nil, nil, nil end
     
     local content = frame:FindFirstChild("Content")
-    if not content then return nil, nil, nil end
+    if not content then log("Content not found", true) return nil, nil, nil end
     
     local tasks = content:FindFirstChild("Tasks")
-    if not tasks then return nil, nil, nil end
+    if not tasks then log("Tasks not found", true) return nil, nil, nil end
     
-    -- Check the 5th template (as per your image)
-    local template = tasks:FindFirstChild("5") or tasks:GetChildren()[5]
-    if not template then return nil, nil, nil end
+    -- Get the 5th template (as per your image)
+    local template = tasks:GetChildren()[5]
+    if not template then log("Template 5 not found", true) return nil, nil, nil end
     
     local contentFrame = template:FindFirstChild("Content")
-    if not contentFrame then return nil, nil, nil end
+    if not contentFrame then log("Content frame not found", true) return nil, nil, nil end
     
-    -- Get quest type
+    -- Check quest type
     local typeLabel = contentFrame:FindFirstChild("Type")
-    local questType = typeLabel and typeLabel.Text or "Unknown"
+    if not typeLabel then log("Type label not found", true) return nil, nil, nil end
     
-    -- Get quest text and progress
-    local label = contentFrame:FindFirstChild("Label")
+    -- Get quest details
+    local questLabel = contentFrame:FindFirstChild("Label")
     local barLabel = contentFrame.Bar and contentFrame.Bar:FindFirstChild("Label")
     
-    return questType, label and label.Text, barLabel and barLabel.Text
+    return typeLabel.Text, questLabel and questLabel.Text, barLabel and barLabel.Text
 end
 
--- Walk to position
+-- Walk to position (with noclip)
 local function walkTo(position)
     humanoid:MoveTo(position)
     
@@ -92,7 +107,7 @@ local function walkTo(position)
             log("Walk timeout reached", true)
             return false
         end
-        wait(0.5)
+        wait(0.1)
     end
     return true
 end
@@ -107,29 +122,28 @@ local function hatchEgg(eggName)
     RemoteEvent:FireServer(unpack(args))
 end
 
--- Special Neon Egg handling
+-- Special Neon Egg handler
 local function handleNeonEgg()
+    log("Starting Neon Egg process", false)
+    
     -- Teleport to Hyperwave Island
     RemoteEvent:FireServer("Teleport", "Workspace.Worlds.MinigameParadise.Islands.HyperwaveIsland.Island.Portal.Spawn")
     wait(5)
     
-    -- Walk to Neon Egg position
+    -- Walk to Neon Egg
     if not walkTo(EGG_DATA["Neon"]) then return false end
     
     -- Hatch until complete
     local startTime = tick()
-    while tick() - startTime < 300 do -- 5 minute timeout
+    while tick() - startTime < 300 do
         local questType, questText, progress = getCurrentQuest()
         
-        -- Skip if quest changed or not repeatable
-        if questType ~= "Repeatable" or not string.find(questText or "", "hatch") then
-            break
-        end
+        -- Stop if quest changed
+        if not questText or not string.find(questText, "Neon") then break end
         
         hatchEgg("Neon")
         
         if progress == "100%" then
-            -- Continue hatching for extra time
             local finishTime = tick()
             while tick() - finishTime < FINAL_HATCH_DELAY do
                 hatchEgg("Neon")
@@ -147,63 +161,52 @@ local function handleNeonEgg()
     return true
 end
 
--- Main processing function
-local function processEggQuest()
-    -- Get current quest info
+-- Main quest processor
+local function processQuest()
     local questType, questText, progress = getCurrentQuest()
     
-    -- Skip if not a repeatable hatch quest
-    if questType ~= "Repeatable" or not string.find(questText or "", "hatch") then
-        log("Skipping non-repeatable or non-egg quest", false)
+    -- Skip if not repeatable or doesn't specify egg type
+    if questType ~= "Repeatable" or not questText or not string.find(questText, "Hatch %d+ %a+ Eggs") then
+        log("Skipping non-repeatable or generic quest", false)
         return false
     end
     
     log("Processing quest: "..questText, false)
     
-    -- Find which egg we need to hatch
-    local targetEgg
-    for eggName in pairs(EGG_DATA) do
-        if string.find(questText, eggName) then
-            targetEgg = eggName
-            break
-        end
-    end
-    
-    if not targetEgg then
-        log("Could not determine egg type from quest", true)
+    -- Extract egg name
+    local eggName = string.match(questText, "Hatch %d+ (%a+) Eggs")
+    if not eggName or not EGG_DATA[eggName] then
+        log("Invalid egg name in quest", true)
         return false
     end
     
-    log("Found target egg: "..targetEgg, false)
+    log("Found target egg: "..eggName, false)
     
-    -- Special handling for Neon Egg
-    if targetEgg == "Neon" then
+    -- Special Neon handling
+    if eggName == "Neon" then
         return handleNeonEgg()
     end
     
-    -- Regular egg handling
-    if not walkTo(EGG_DATA[targetEgg]) then
+    -- Walk to egg
+    if not walkTo(EGG_DATA[eggName]) then
         log("Failed to walk to egg", true)
         return false
     end
     
     -- Hatch until complete
     local startTime = tick()
-    while tick() - startTime < 300 do -- 5 minute timeout
+    while tick() - startTime < 300 do
         local currentType, currentText, currentProgress = getCurrentQuest()
         
-        -- Stop if quest changed or not repeatable
-        if currentType ~= "Repeatable" or not string.find(currentText or "", "hatch") then
-            break
-        end
+        -- Stop if quest changed
+        if not currentText or not string.find(currentText, eggName) then break end
         
-        hatchEgg(targetEgg)
+        hatchEgg(eggName)
         
         if currentProgress == "100%" then
-            -- Continue hatching for extra time
             local finishTime = tick()
             while tick() - finishTime < FINAL_HATCH_DELAY do
-                hatchEgg(targetEgg)
+                hatchEgg(eggName)
                 wait(HATCH_INTERVAL)
             end
             break
@@ -219,11 +222,10 @@ end
 log("Egg Hatching Script Started", false)
 
 while true do
-    local success, err = pcall(processEggQuest)
+    local success, err = pcall(processQuest)
     if not success then
-        log("Error: "..tostring(err), true)
+        log("Error in processQuest: "..tostring(err), true)
     end
     
-    -- Wait before checking again
     wait(1)
 end
