@@ -47,7 +47,7 @@ local RemoteEvent = ReplicatedStorage:WaitForChild("Shared")
 local function log(message, isError)
     local timestamp = os.date("%H:%M:%S")
     local prefix = isError and "[ERROR]" or "[INFO]"
-    print(string.format("%s [%s] %s", prefix, timestamp, message))
+    print(string.format("%s [%s] %s", prefix, timestamp, tostring(message)))
 end
 
 -- Improved tween movement function with fixed Y-axis tween time
@@ -79,7 +79,7 @@ local function moveToPosition(targetPosition)
     tween2.Completed:Wait()
     
     -- Finally, move up to target Y position - fixed 1 second
-    local finalPosition = Vector3.new(targetPosition.X, targetPosition.Y + 3, targetPosition.Z) -- Adding 3 to Y to ensure we're above the egg
+    local finalPosition = Vector3.new(targetPosition.X, targetPosition.Y + 3, targetPosition.Z)
     
     local tweenInfo3 = TweenInfo.new(
         Y_TWEEN_TIME, -- Fixed 1 second for Y-axis movement
@@ -97,38 +97,67 @@ local function moveToPosition(targetPosition)
     return true
 end
 
+-- Modified getCurrentQuest function with better nil checks
 local function getCurrentQuest()
     local success, gui = pcall(function() return player.PlayerGui.ScreenGui end)
-    if not success then log("Failed to find ScreenGui", true) return nil, nil, nil end
+    if not success or not gui then 
+        if DEBUG_LOGGING then log("Failed to find ScreenGui", true) end
+        return nil, nil, nil 
+    end
     
     local competitive = gui:FindFirstChild("Competitive")
-    if not competitive then log("Competitive not found", true) return nil, nil, nil end
+    if not competitive then 
+        if DEBUG_LOGGING then log("Competitive not found", true) end
+        return nil, nil, nil 
+    end
     
     local frame = competitive:FindFirstChild("Frame")
-    if not frame then log("Frame not found", true) return nil, nil, nil end
+    if not frame then 
+        if DEBUG_LOGGING then log("Frame not found", true) end
+        return nil, nil, nil 
+    end
     
     local content = frame:FindFirstChild("Content")
-    if not content then log("Content not found", true) return nil, nil, nil end
+    if not content then 
+        if DEBUG_LOGGING then log("Content not found", true) end
+        return nil, nil, nil 
+    end
     
     local tasks = content:FindFirstChild("Tasks")
-    if not tasks then log("Tasks not found", true) return nil, nil, nil end
+    if not tasks then 
+        if DEBUG_LOGGING then log("Tasks not found", true) end
+        return nil, nil, nil 
+    end
     
-    -- Get the 5th template (as per your image)
-    local template = tasks:GetChildren()[5]
-    if not template then log("Template 5 not found", true) return nil, nil, nil end
+    -- Safely get the 5th template
+    local children = tasks:GetChildren()
+    local template = #children >= 5 and children[5] or nil
+    if not template then 
+        if DEBUG_LOGGING then log("Template 5 not found", true) end
+        return nil, nil, nil 
+    end
     
     local contentFrame = template:FindFirstChild("Content")
-    if not contentFrame then log("Content frame not found", true) return nil, nil, nil end
+    if not contentFrame then 
+        if DEBUG_LOGGING then log("Content frame not found", true) end
+        return nil, nil, nil 
+    end
     
-    -- Check quest type
+    -- Check quest type with nil checks
     local typeLabel = contentFrame:FindFirstChild("Type")
-    if not typeLabel then log("Type label not found", true) return nil, nil, nil end
+    if not typeLabel then 
+        if DEBUG_LOGGING then log("Type label not found", true) end
+        return nil, nil, nil 
+    end
     
-    -- Get quest details
+    -- Get quest details with nil checks
     local questLabel = contentFrame:FindFirstChild("Label")
     local barLabel = contentFrame.Bar and contentFrame.Bar:FindFirstChild("Label")
     
-    return typeLabel.Text, questLabel and questLabel.Text, barLabel and barLabel.Text
+    return 
+        typeLabel and typeLabel.Text or nil,
+        questLabel and questLabel.Text or nil,
+        barLabel and barLabel.Text or nil
 end
 
 -- Hatch egg function
@@ -161,11 +190,11 @@ local function handleNeonEgg()
         local questType, questText, progress = getCurrentQuest()
         
         -- Stop if quest changed
-        if not questText or not string.find(questText, "Neon") then break end
+        if not questText or not string.find(tostring(questText), "Neon") then break end
         
         hatchEgg("Neon")
         
-        if progress == "100%" then
+        if progress and progress == "100%" then
             local finishTime = tick()
             while tick() - finishTime < FINAL_HATCH_DELAY do
                 hatchEgg("Neon")
@@ -187,41 +216,42 @@ end
 local function processQuest()
     local questType, questText, progress = getCurrentQuest()
     
+    -- Skip if we couldn't get quest info
+    if not questType or not questText then
+        if DEBUG_LOGGING then log("Failed to get quest information", false) end
+        return false
+    end
+    
     -- Skip if not repeatable
     if questType ~= "Repeatable" then
-        log("Skipping non-repeatable quest", false)
+        if DEBUG_LOGGING then log("Skipping non-repeatable quest: "..tostring(questType), false) end
         return false
     end
     
-    if not questText then
-        log("No quest text found", false)
-        return false
-    end
-    
-    -- Convert to lowercase for easier matching
-    local questTextLower = string.lower(questText)
+    -- Safely convert to lowercase for matching
+    local questTextLower = string.lower(tostring(questText))
     
     -- Check for Pet quest (hatch Infinity Egg)
     if string.find(questTextLower, "pet") then
-        log("Processing Pet quest - hatching Infinity Egg", false)
+        if DEBUG_LOGGING then log("Processing Pet quest - hatching Infinity Egg", false) end
         
-        -- Move to Infinity Egg using tween
         if not moveToPosition(EGG_DATA["Infinity"]) then
-            log("Failed to reach Infinity Egg", true)
+            if DEBUG_LOGGING then log("Failed to reach Infinity Egg", true) end
             return false
         end
         
-        -- Hatch until complete
         local startTime = tick()
         while tick() - startTime < 300 do
             local currentType, currentText, currentProgress = getCurrentQuest()
             
-            -- Stop if quest changed or no longer contains "Pet"
-            if not currentText or not string.find(string.lower(currentText), "pet") then break end
+            -- Stop if quest changed or invalid
+            if not currentText or not string.find(string.lower(tostring(currentText)), "pet") then 
+                break 
+            end
             
             hatchEgg("Infinity")
             
-            if currentProgress == "100%" then
+            if currentProgress and currentProgress == "100%" then
                 local finishTime = tick()
                 while tick() - finishTime < FINAL_HATCH_DELAY do
                     hatchEgg("Infinity")
@@ -237,31 +267,29 @@ local function processQuest()
     
     -- Check for specific egg quests
     for eggName, _ in pairs(EGG_DATA) do
-        if string.find(questText, eggName) then
-            log("Found egg quest for: "..eggName, false)
+        if questText and string.find(tostring(questText), eggName) then
+            if DEBUG_LOGGING then log("Found egg quest for: "..tostring(eggName), false) end
             
-            -- Special Neon handling
             if eggName == "Neon" then
                 return handleNeonEgg()
             end
             
-            -- Move to egg using tween
             if not moveToPosition(EGG_DATA[eggName]) then
-                log("Failed to reach "..eggName.." Egg", true)
+                if DEBUG_LOGGING then log("Failed to reach "..tostring(eggName).." Egg", true) end
                 return false
             end
             
-            -- Hatch until complete
             local startTime = tick()
             while tick() - startTime < 300 do
                 local currentType, currentText, currentProgress = getCurrentQuest()
                 
-                -- Stop if quest changed
-                if not currentText or not string.find(currentText, eggName) then break end
+                if not currentText or not string.find(tostring(currentText), eggName) then 
+                    break 
+                end
                 
                 hatchEgg(eggName)
                 
-                if currentProgress == "100%" then
+                if currentProgress and currentProgress == "100%" then
                     local finishTime = tick()
                     while tick() - finishTime < FINAL_HATCH_DELAY do
                         hatchEgg(eggName)
@@ -276,12 +304,12 @@ local function processQuest()
         end
     end
     
-    log("Skipping unrecognized quest: "..questText, false)
+    if DEBUG_LOGGING then log("Skipping unrecognized quest: "..tostring(questText), false) end
     return false
 end
 
 -- Main loop
-log("Egg Hatching Script Started (Tween Speed: "..WALK_SPEED.." studs/sec)", false)
+log("Egg Hatching Script Started (Horizontal Speed: "..HORIZONTAL_SPEED.." studs/sec, Y-Tween: "..Y_TWEEN_TIME.." sec)", false)
 
 -- Disable collisions for character
 for _, part in ipairs(character:GetDescendants()) do
