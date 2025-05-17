@@ -92,7 +92,7 @@ if not RemoteEvent then
 end
 
 -- Improved GUI setup with better quest detection
-local function getEggQuestInfo()
+local function getSpecificEggQuestInfo()
     while true do
         local gui = player:FindFirstChild("PlayerGui")
         if not gui then
@@ -149,19 +149,19 @@ local function getEggQuestInfo()
                         local questText = label.Text
                         local progress = barLabel.Text
                         
-                        -- Only return if it's an egg quest
-                        if string.find(string.lower(questText), "hatch") then
-                            log(string.format("Found egg quest: %s (Progress: %s)", questText, progress), false)
+                        -- Skip general "Hatch x eggs" quests
+                        if string.find(string.lower(questText), "hatch") and not string.find(string.lower(questText), "hatch %d+ eggs") then
+                            log(string.format("Found specific egg quest: %s (Progress: %s)", questText, progress), false)
                             return questText, progress
                         else
-                            log(string.format("Ignoring non-egg quest: %s", questText), false)
+                            log(string.format("Ignoring general quest: %s", questText), false)
                         end
                     end
                 end
             end
         end
         
-        log("No active egg quests found - waiting...", false)
+        log("No specific egg quests found - waiting...", false)
         wait(1)
     end
 end
@@ -258,7 +258,7 @@ local function doNeonEgg()
     local startTime = tick()
     
     while not done and tick() - startTime < 300 do -- 5 minute timeout
-        local questText, progress = getEggQuestInfo()
+        local questText, progress = getSpecificEggQuestInfo()
         
         if not string.find(questText:lower(), "hatch") then
             log("No hatch quest detected", false)
@@ -315,10 +315,10 @@ end
 
 -- Main function to handle egg quests
 local function handleEggQuest()
-    log("Checking for egg quests...", false)
+    log("Checking for specific egg quests...", false)
     
-    -- This will wait until an egg quest is found
-    local questText, progress = getEggQuestInfo()
+    -- This will wait until a specific egg quest is found
+    local questText, progress = getSpecificEggQuestInfo()
     local eggName = getEggName(questText)
     
     if not eggName then
@@ -343,7 +343,7 @@ local function handleEggQuest()
     local startTime = tick()
     
     while not done and tick() - startTime < 300 do -- 5 minute timeout
-        local currentQuest, currentProgress = getEggQuestInfo()
+        local currentQuest, currentProgress = getSpecificEggQuestInfo()
         
         if not string.find(currentQuest:lower(), "hatch") then
             log("Quest changed or no longer available", false)
@@ -372,7 +372,7 @@ local function handleEggQuest()
 end
 
 -- Main loop with comprehensive error handling
-log("Egg Hatching Script Started", false)
+log("Egg Hatching Script Started - Only processing specific egg quests", false)
 
 while true do
     local success, err = pcall(handleEggQuest)
