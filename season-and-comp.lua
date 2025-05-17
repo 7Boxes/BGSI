@@ -4,6 +4,7 @@ local FINAL_HATCH_DELAY = 5 -- Extra seconds after 100%
 local HATCH_INTERVAL = 0.2 -- Time between hatches
 local WALK_SPEED = 32 -- Faster walking speed
 local DEBUG_LOGGING = true -- Detailed logging
+local FORCE_MOVE_INTERVAL = 0.1 -- Time between forced position updates
 
 -- Egg data with coordinates
 local EGG_DATA = {
@@ -28,27 +29,14 @@ local EGG_DATA = {
 -- Services
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 -- Player setup
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
 humanoid.WalkSpeed = WALK_SPEED
-
--- Enable walking through walls
-local function enableNoClip()
-    for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = false
-        end
-    end
-    character.ChildAdded:Connect(function(child)
-        if child:IsA("BasePart") then
-            child.CanCollide = false
-        end
-    end)
-end
-enableNoClip()
 
 -- Remote setup
 local RemoteEvent = ReplicatedStorage:WaitForChild("Shared")
@@ -60,6 +48,67 @@ local function log(message, isError)
     local timestamp = os.date("%H:%M:%S")
     local prefix = isError and "[ERROR]" or "[INFO]"
     print(string.format("%s [%s] %s", prefix, timestamp, message))
+end
+
+-- Force movement through walls
+local function forceMoveTo(targetPosition)
+    local startTime = tick()
+    local lastPosition = rootPart.Position
+    local stuckTimer = 0
+    local connection
+    
+    -- Enable noclip temporarily
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+        end
+    end
+    
+    -- Start regular movement
+    humanoid:MoveTo(targetPosition)
+    
+    -- Force position updates
+    connection = RunService.Heartbeat:Connect(function()
+        local direction = (targetPosition - rootPart.Position).Unit
+        local distance = (targetPosition - rootPart.Position).Magnitude
+        
+        -- Apply slight forward force
+        if distance > 5 then
+            rootPart.Velocity = direction * WALK_SPEED
+        end
+        
+        -- Check if stuck
+        if (rootPart.Position - lastPosition).Magnitude < 0.5 then
+            stuckTimer = stuckTimer + RunService.Heartbeat:Wait()
+            if stuckTimer > 1 then -- Stuck for 1 second
+                -- Jump and apply stronger force
+                humanoid.Jump = true
+                rootPart.Velocity = direction * (WALK_SPEED * 1.5)
+                stuckTimer = 0
+            end
+        else
+            stuckTimer = 0
+        end
+        lastPosition = rootPart.Position
+    end)
+    
+    -- Wait until reached or timeout
+    while (rootPart.Position - targetPosition).Magnitude > 5 and tick() - startTime < 30 do
+        wait(0.1)
+    end
+    
+    -- Cleanup
+    connection:Disconnect()
+    rootPart.Velocity = Vector3.new(0, 0, 0)
+    
+    -- Restore collision (except for character parts)
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") and part ~= rootPart then
+            part.CanCollide = false
+        end
+    end
+    
+    return (rootPart.Position - targetPosition).Magnitude <= 5
 end
 
 -- Get current quest info
@@ -97,21 +146,6 @@ local function getCurrentQuest()
     return typeLabel.Text, questLabel and questLabel.Text, barLabel and barLabel.Text
 end
 
--- Walk to position (with noclip)
-local function walkTo(position)
-    humanoid:MoveTo(position)
-    
-    local startTime = tick()
-    while (character.HumanoidRootPart.Position - position).Magnitude > 5 do
-        if tick() - startTime > 30 then
-            log("Walk timeout reached", true)
-            return false
-        end
-        wait(0.1)
-    end
-    return true
-end
-
 -- Hatch egg function
 local function hatchEgg(eggName)
     local args = {
@@ -130,8 +164,11 @@ local function handleNeonEgg()
     RemoteEvent:FireServer("Teleport", "Workspace.Worlds.MinigameParadise.Islands.HyperwaveIsland.Island.Portal.Spawn")
     wait(5)
     
-    -- Walk to Neon Egg
-    if not walkTo(EGG_DATA["Neon"]) then return false end
+    -- Move to Neon Egg
+    if not forceMoveTo(EGG_DATA["Neon"]) then 
+        log("Failed to reach Neon Egg", true)
+        return false 
+    end
     
     -- Hatch until complete
     local startTime = tick()
@@ -187,9 +224,9 @@ local function processQuest()
         return handleNeonEgg()
     end
     
-    -- Walk to egg
-    if not walkTo(EGG_DATA[eggName]) then
-        log("Failed to walk to egg", true)
+    -- Move to egg
+    if not forceMoveTo(EGG_DATA[eggName]) then
+        log("Failed to reach egg", true)
         return false
     end
     
@@ -220,6 +257,19 @@ end
 
 -- Main loop
 log("Egg Hatching Script Started", false)
+
+-- Initial noclip setup (character only)
+for _, part in ipairs(character:GetDescendants()) do
+    if part:IsA("BasePart") and part ~= rootPart then
+        part.CanCollide = false
+    end
+end
+
+character.ChildAdded:Connect(function(child)
+    if child:IsA("BasePart") and child ~= rootPart then
+        child.CanCollide = false
+    end
+end)
 
 while true do
     local success, err = pcall(processQuest)
