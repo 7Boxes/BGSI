@@ -91,79 +91,83 @@ if not RemoteEvent then
     return
 end
 
--- Improved GUI setup with better quest detection
-local function getSpecificEggQuestInfo()
-    while true do
-        local gui = player:FindFirstChild("PlayerGui")
-        if not gui then
-            log("PlayerGui not found", false)
-            wait(1)
-            continue
-        end
+-- Function to check if quest is repeatable
+local function isQuestRepeatable()
+    local success, gui = pcall(function()
+        return player:WaitForChild("PlayerGui"):WaitForChild("ScreenGui")
+    end)
+    if not success then return false end
 
-        local screenGui = gui:FindFirstChild("ScreenGui")
-        if not screenGui then
-            log("ScreenGui not found", false)
-            wait(1)
-            continue
-        end
+    local success, competitive = pcall(function()
+        return gui:WaitForChild("Competitive"):WaitForChild("Frame")
+    end)
+    if not success then return false end
 
-        local competitive = screenGui:FindFirstChild("Competitive")
-        if not competitive then
-            log("Competitive frame not found", false)
-            wait(1)
-            continue
-        end
+    local success, content = pcall(function()
+        return competitive:WaitForChild("Content"):WaitForChild("Tasks")
+    end)
+    if not success then return false end
 
-        local frame = competitive:FindFirstChild("Frame")
-        if not frame then
-            log("Frame not found", false)
-            wait(1)
-            continue
-        end
+    local children = content:GetChildren()
+    if #children < 5 then return false end
 
-        local content = frame:FindFirstChild("Content")
-        if not content then
-            log("Content not found", false)
-            wait(1)
-            continue
-        end
+    local template = children[5]
+    local success, templateContent = pcall(function()
+        return template:FindFirstChild("Content")
+    end)
+    if not success or not templateContent then return false end
 
-        local tasks = content:FindFirstChild("Tasks")
-        if not tasks then
-            log("Tasks folder not found", false)
-            wait(1)
-            continue
-        end
+    local success, typeLabel = pcall(function()
+        return templateContent:FindFirstChild("Type")
+    end)
+    if not success or not typeLabel then return false end
 
-        -- Search through all templates
-        for _, template in ipairs(tasks:GetChildren()) do
-            if template.Name == "Template" then
-                local contentFrame = template:FindFirstChild("Content")
-                if contentFrame then
-                    local label = contentFrame:FindFirstChild("Label")
-                    local bar = contentFrame:FindFirstChild("Bar")
-                    local barLabel = bar and bar:FindFirstChild("Label")
+    return typeLabel.Text == "Repeatable"
+end
 
-                    if label and barLabel then
-                        local questText = label.Text
-                        local progress = barLabel.Text
-                        
-                        -- Skip general "Hatch x eggs" quests
-                        if string.find(string.lower(questText), "hatch") and not string.find(string.lower(questText), "hatch %d+ eggs") then
-                            log(string.format("Found specific egg quest: %s (Progress: %s)", questText, progress), false)
-                            return questText, progress
-                        else
-                            log(string.format("Ignoring general quest: %s", questText), false)
-                        end
+-- Function to get egg quest info
+local function getEggQuestInfo()
+    local gui = player:FindFirstChild("PlayerGui")
+    if not gui then return nil, "0%" end
+
+    local screenGui = gui:FindFirstChild("ScreenGui")
+    if not screenGui then return nil, "0%" end
+
+    local competitive = screenGui:FindFirstChild("Competitive")
+    if not competitive then return nil, "0%" end
+
+    local frame = competitive:FindFirstChild("Frame")
+    if not frame then return nil, "0%" end
+
+    local content = frame:FindFirstChild("Content")
+    if not content then return nil, "0%" end
+
+    local tasks = content:FindFirstChild("Tasks")
+    if not tasks then return nil, "0%" end
+
+    for _, template in ipairs(tasks:GetChildren()) do
+        if template.Name == "Template" then
+            local contentFrame = template:FindFirstChild("Content")
+            if contentFrame then
+                local label = contentFrame:FindFirstChild("Label")
+                local bar = contentFrame:FindFirstChild("Bar")
+                local barLabel = bar and bar:FindFirstChild("Label")
+
+                if label and barLabel then
+                    local questText = label.Text
+                    local progress = barLabel.Text
+                    
+                    -- Only return if it's an egg quest
+                    if string.find(string.lower(questText), "hatch") then
+                        log(string.format("Found egg quest: %s (Progress: %s)", questText, progress), false)
+                        return questText, progress
                     end
                 end
             end
         end
-        
-        log("No specific egg quests found - waiting...", false)
-        wait(1)
     end
+    
+    return nil, "0%"
 end
 
 -- Walking function with error handling
@@ -258,9 +262,9 @@ local function doNeonEgg()
     local startTime = tick()
     
     while not done and tick() - startTime < 300 do -- 5 minute timeout
-        local questText, progress = getSpecificEggQuestInfo()
+        local questText, progress = getEggQuestInfo()
         
-        if not string.find(questText:lower(), "hatch") then
+        if not questText or not string.find(questText:lower(), "hatch") then
             log("No hatch quest detected", false)
             break
         end
@@ -315,12 +319,21 @@ end
 
 -- Main function to handle egg quests
 local function handleEggQuest()
-    log("Checking for specific egg quests...", false)
+    -- First check if quest is repeatable
+    if not isQuestRepeatable() then
+        log("Quest is not repeatable - skipping", false)
+        return false
+    end
+
+    log("Checking for egg quests...", false)
     
-    -- This will wait until a specific egg quest is found
-    local questText, progress = getSpecificEggQuestInfo()
+    local questText, progress = getEggQuestInfo()
+    if not questText then
+        log("No quest text found", false)
+        return false
+    end
+    
     local eggName = getEggName(questText)
-    
     if not eggName then
         log("Could not determine egg name from quest", true)
         return false
@@ -343,9 +356,9 @@ local function handleEggQuest()
     local startTime = tick()
     
     while not done and tick() - startTime < 300 do -- 5 minute timeout
-        local currentQuest, currentProgress = getSpecificEggQuestInfo()
+        local currentQuest, currentProgress = getEggQuestInfo()
         
-        if not string.find(currentQuest:lower(), "hatch") then
+        if not currentQuest or not string.find(currentQuest:lower(), "hatch") then
             log("Quest changed or no longer available", false)
             break
         end
@@ -372,7 +385,7 @@ local function handleEggQuest()
 end
 
 -- Main loop with comprehensive error handling
-log("Egg Hatching Script Started - Only processing specific egg quests", false)
+log("Egg Hatching Script Started - Only processing repeatable quests", false)
 
 while true do
     local success, err = pcall(handleEggQuest)
