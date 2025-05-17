@@ -5,6 +5,10 @@ local HATCH_INTERVAL = 0.2 -- Time between hatches
 local HORIZONTAL_SPEED = 36 -- Studs per second for X/Z movement (configurable)
 local Y_TWEEN_TIME = 1 -- Fixed 1 second for Y-axis movement
 local DEBUG_LOGGING = true -- Detailed logging
+local TELEPORT_DELAY = 5 -- Seconds to wait after teleporting
+local TELEPORT_RETRIES = 5 -- Number of times to trigger teleport
+local TELEPORT_RETRY_DELAY = 0.2 -- Seconds between teleport retries
+local WALK_SPEED = 16 -- Normal walking speed
 
 -- Egg data with coordinates
 local EGG_DATA = {
@@ -36,7 +40,7 @@ local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local rootPart = character:WaitForChild("HumanoidRootPart")
-humanoid.WalkSpeed = 16 -- Normal walking speed (for non-tween movement)
+humanoid.WalkSpeed = WALK_SPEED
 
 -- Remote setup
 local RemoteEvent = ReplicatedStorage:WaitForChild("Shared")
@@ -56,7 +60,7 @@ local function moveToPosition(targetPosition)
     local groundPosition = Vector3.new(rootPart.Position.X, 0, rootPart.Position.Z)
     
     local tweenInfo1 = TweenInfo.new(
-        Y_TWEEN_TIME, -- Fixed 1 second for Y-axis movement
+        Y_TWEEN_TIME,
         Enum.EasingStyle.Linear
     )
     
@@ -82,7 +86,7 @@ local function moveToPosition(targetPosition)
     local finalPosition = Vector3.new(targetPosition.X, targetPosition.Y + 3, targetPosition.Z)
     
     local tweenInfo3 = TweenInfo.new(
-        Y_TWEEN_TIME, -- Fixed 1 second for Y-axis movement
+        Y_TWEEN_TIME,
         Enum.EasingStyle.Linear
     )
     
@@ -97,67 +101,76 @@ local function moveToPosition(targetPosition)
     return true
 end
 
--- Modified getCurrentQuest function with better nil checks
+-- Special teleport function for Neon Egg
+local function teleportToNeonIsland()
+    local args = {
+        "Teleport",
+        "Workspace.Worlds.MinigameParadise.Islands.HyperwaveIsland.Island.Portal.Spawn"
+    }
+    
+    -- Trigger teleport multiple times with delay
+    for i = 1, TELEPORT_RETRIES do
+        RemoteEvent:FireServer(unpack(args))
+        wait(TELEPORT_RETRY_DELAY)
+    end
+    
+    -- Wait the full delay after all teleports
+    wait(TELEPORT_DELAY)
+    return true
+end
+
+-- Teleport back to Overworld
+local function teleportToOverworld()
+    local args = {
+        "Teleport",
+        "Workspace.Worlds.The Overworld.FastTravel.Spawn"
+    }
+    
+    -- Trigger teleport multiple times with delay
+    for i = 1, TELEPORT_RETRIES do
+        RemoteEvent:FireServer(unpack(args))
+        wait(TELEPORT_RETRY_DELAY)
+    end
+    
+    -- Wait the full delay after all teleports
+    wait(TELEPORT_DELAY)
+    return true
+end
+
+-- Get current quest info with nil checks
 local function getCurrentQuest()
     local success, gui = pcall(function() return player.PlayerGui.ScreenGui end)
-    if not success or not gui then 
-        if DEBUG_LOGGING then log("Failed to find ScreenGui", true) end
-        return nil, nil, nil 
-    end
+    if not success or not gui then return nil, nil, nil end
     
     local competitive = gui:FindFirstChild("Competitive")
-    if not competitive then 
-        if DEBUG_LOGGING then log("Competitive not found", true) end
-        return nil, nil, nil 
-    end
+    if not competitive then return nil, nil, nil end
     
     local frame = competitive:FindFirstChild("Frame")
-    if not frame then 
-        if DEBUG_LOGGING then log("Frame not found", true) end
-        return nil, nil, nil 
-    end
+    if not frame then return nil, nil, nil end
     
     local content = frame:FindFirstChild("Content")
-    if not content then 
-        if DEBUG_LOGGING then log("Content not found", true) end
-        return nil, nil, nil 
-    end
+    if not content then return nil, nil, nil end
     
     local tasks = content:FindFirstChild("Tasks")
-    if not tasks then 
-        if DEBUG_LOGGING then log("Tasks not found", true) end
-        return nil, nil, nil 
-    end
+    if not tasks then return nil, nil, nil end
     
-    -- Safely get the 5th template
     local children = tasks:GetChildren()
     local template = #children >= 5 and children[5] or nil
-    if not template then 
-        if DEBUG_LOGGING then log("Template 5 not found", true) end
-        return nil, nil, nil 
-    end
+    if not template then return nil, nil, nil end
     
     local contentFrame = template:FindFirstChild("Content")
-    if not contentFrame then 
-        if DEBUG_LOGGING then log("Content frame not found", true) end
-        return nil, nil, nil 
-    end
+    if not contentFrame then return nil, nil, nil end
     
-    -- Check quest type with nil checks
     local typeLabel = contentFrame:FindFirstChild("Type")
-    if not typeLabel then 
-        if DEBUG_LOGGING then log("Type label not found", true) end
-        return nil, nil, nil 
-    end
+    if not typeLabel then return nil, nil, nil end
     
-    -- Get quest details with nil checks
     local questLabel = contentFrame:FindFirstChild("Label")
     local barLabel = contentFrame.Bar and contentFrame.Bar:FindFirstChild("Label")
     
     return 
-        typeLabel and typeLabel.Text or nil,
-        questLabel and questLabel.Text or nil,
-        barLabel and barLabel.Text or nil
+        typeLabel.Text,
+        questLabel and questLabel.Text,
+        barLabel and barLabel.Text
 end
 
 -- Hatch egg function
@@ -170,26 +183,31 @@ local function hatchEgg(eggName)
     RemoteEvent:FireServer(unpack(args))
 end
 
--- Special Neon Egg handler
+-- Special Neon Egg handler with new teleport requirements
 local function handleNeonEgg()
     log("Starting Neon Egg process", false)
     
-    -- Teleport to Hyperwave Island
-    RemoteEvent:FireServer("Teleport", "Workspace.Worlds.MinigameParadise.Islands.HyperwaveIsland.Island.Portal.Spawn")
-    wait(5)
+    -- Teleport to Hyperwave Island with special process
+    if not teleportToNeonIsland() then
+        log("Failed to teleport to Neon Island", true)
+        return false
+    end
     
-    -- Move to Neon Egg using tween
-    if not moveToPosition(EGG_DATA["Neon"]) then 
-        log("Failed to reach Neon Egg", true)
-        return false 
+    -- Walk to Neon Egg (no tweening for Neon egg)
+    local targetPos = EGG_DATA["Neon"]
+    humanoid:MoveTo(targetPos)
+    
+    -- Wait until we reach the egg or timeout
+    local startTime = tick()
+    while (rootPart.Position - targetPos).Magnitude > 5 and tick() - startTime < 30 do
+        wait(0.1)
     end
     
     -- Hatch until complete
-    local startTime = tick()
+    startTime = tick()
     while tick() - startTime < 300 do
         local questType, questText, progress = getCurrentQuest()
         
-        -- Stop if quest changed
         if not questText or not string.find(tostring(questText), "Neon") then break end
         
         hatchEgg("Neon")
@@ -206,9 +224,12 @@ local function handleNeonEgg()
         wait(HATCH_INTERVAL)
     end
     
-    -- Return to Overworld
-    RemoteEvent:FireServer("Teleport", "Workspace.Worlds.The Overworld.FastTravel.Spawn")
-    wait(5)
+    -- Return to Overworld with special teleport process
+    if not teleportToOverworld() then
+        log("Failed to teleport back to Overworld", true)
+        return false
+    end
+    
     return true
 end
 
@@ -216,19 +237,16 @@ end
 local function processQuest()
     local questType, questText, progress = getCurrentQuest()
     
-    -- Skip if we couldn't get quest info
     if not questType or not questText then
         if DEBUG_LOGGING then log("Failed to get quest information", false) end
         return false
     end
     
-    -- Skip if not repeatable
     if questType ~= "Repeatable" then
         if DEBUG_LOGGING then log("Skipping non-repeatable quest: "..tostring(questType), false) end
         return false
     end
     
-    -- Safely convert to lowercase for matching
     local questTextLower = string.lower(tostring(questText))
     
     -- Check for Pet quest (hatch Infinity Egg)
@@ -244,10 +262,7 @@ local function processQuest()
         while tick() - startTime < 300 do
             local currentType, currentText, currentProgress = getCurrentQuest()
             
-            -- Stop if quest changed or invalid
-            if not currentText or not string.find(string.lower(tostring(currentText)), "pet") then 
-                break 
-            end
+            if not currentText or not string.find(string.lower(tostring(currentText)), "pet") then break end
             
             hatchEgg("Infinity")
             
@@ -267,15 +282,15 @@ local function processQuest()
     
     -- Check for specific egg quests
     for eggName, _ in pairs(EGG_DATA) do
-        if questText and string.find(tostring(questText), eggName) then
-            if DEBUG_LOGGING then log("Found egg quest for: "..tostring(eggName), false) end
+        if string.find(tostring(questText), eggName) then
+            if DEBUG_LOGGING then log("Found egg quest for: "..eggName, false) end
             
             if eggName == "Neon" then
                 return handleNeonEgg()
             end
             
             if not moveToPosition(EGG_DATA[eggName]) then
-                if DEBUG_LOGGING then log("Failed to reach "..tostring(eggName).." Egg", true) end
+                if DEBUG_LOGGING then log("Failed to reach "..eggName.." Egg", true) end
                 return false
             end
             
@@ -283,9 +298,7 @@ local function processQuest()
             while tick() - startTime < 300 do
                 local currentType, currentText, currentProgress = getCurrentQuest()
                 
-                if not currentText or not string.find(tostring(currentText), eggName) then 
-                    break 
-                end
+                if not currentText or not string.find(tostring(currentText), eggName) then break end
                 
                 hatchEgg(eggName)
                 
@@ -309,7 +322,7 @@ local function processQuest()
 end
 
 -- Main loop
-log("Egg Hatching Script Started (Horizontal Speed: "..HORIZONTAL_SPEED.." studs/sec, Y-Tween: "..Y_TWEEN_TIME.." sec)", false)
+log("Egg Hatching Script Started", false)
 
 -- Disable collisions for character
 for _, part in ipairs(character:GetDescendants()) do
