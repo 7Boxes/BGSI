@@ -202,9 +202,49 @@ end
 local function processQuest()
     local questType, questText, progress = getCurrentQuest()
     
-    -- Skip if not repeatable or doesn't specify egg type
-    if questType ~= "Repeatable" or not questText or not string.find(questText, "Hatch %d+ %a+ Eggs") then
-        log("Skipping non-repeatable or generic quest", false)
+    -- Skip if not repeatable
+    if questType ~= "Repeatable" then
+        log("Skipping non-repeatable quest", false)
+        return false
+    end
+    
+    -- Check for Shiny quest (hatch Infinity Egg)
+    if string.find(questText:lower(), "shiny") then
+        log("Processing Shiny quest - hatching Infinity Egg", false)
+        
+        -- Move to Infinity Egg
+        if not forceMoveTo(EGG_DATA["Infinity"]) then
+            log("Failed to reach Infinity Egg", true)
+            return false
+        end
+        
+        -- Hatch until complete
+        local startTime = tick()
+        while tick() - startTime < 300 do
+            local currentType, currentText, currentProgress = getCurrentQuest()
+            
+            -- Stop if quest changed or no longer contains "Shiny"
+            if not currentText or not string.find(currentText:lower(), "shiny") then break end
+            
+            hatchEgg("Infinity")
+            
+            if currentProgress == "100%" then
+                local finishTime = tick()
+                while tick() - finishTime < FINAL_HATCH_DELAY do
+                    hatchEgg("Infinity")
+                    wait(HATCH_INTERVAL)
+                end
+                break
+            end
+            
+            wait(HATCH_INTERVAL)
+        end
+        return true
+    end
+    
+    -- Skip if doesn't specify egg type
+    if not string.find(questText, "Hatch %d+ %a+ Eggs") then
+        log("Skipping generic quest", false)
         return false
     end
     
