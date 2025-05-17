@@ -91,53 +91,79 @@ if not RemoteEvent then
     return
 end
 
--- GUI setup with error handling
-local function getQuestInfo()
-    local success, gui = pcall(function()
-        return player:WaitForChild("PlayerGui", 5):WaitForChild("ScreenGui", 5)
-    end)
-    if not success then
-        log("Failed to find ScreenGui: "..tostring(gui), true)
-        return nil, "0%"
-    end
+-- Improved GUI setup with better quest detection
+local function getEggQuestInfo()
+    while true do
+        local gui = player:FindFirstChild("PlayerGui")
+        if not gui then
+            log("PlayerGui not found", false)
+            wait(1)
+            continue
+        end
 
-    local success, competitiveFrame = pcall(function()
-        return gui:WaitForChild("Competitive", 5):WaitForChild("Frame", 5)
-    end)
-    if not success then
-        log("Failed to find Competitive Frame: "..tostring(competitiveFrame), true)
-        return nil, "0%"
-    end
+        local screenGui = gui:FindFirstChild("ScreenGui")
+        if not screenGui then
+            log("ScreenGui not found", false)
+            wait(1)
+            continue
+        end
 
-    local success, tasksFolder = pcall(function()
-        return competitiveFrame:WaitForChild("Content", 5):WaitForChild("Tasks", 5)
-    end)
-    if not success then
-        log("Failed to find Tasks folder: "..tostring(tasksFolder), true)
-        return nil, "0%"
-    end
+        local competitive = screenGui:FindFirstChild("Competitive")
+        if not competitive then
+            log("Competitive frame not found", false)
+            wait(1)
+            continue
+        end
 
-    for _, template in ipairs(tasksFolder:GetChildren()) do
-        if template.Name == "Template" then
-            local success, content = pcall(function() return template:FindFirstChild("Content") end)
-            if not success or not content then
-                log("Failed to find Content in template "..template.Name, true)
-                continue
-            end
+        local frame = competitive:FindFirstChild("Frame")
+        if not frame then
+            log("Frame not found", false)
+            wait(1)
+            continue
+        end
 
-            local label = content:FindFirstChild("Label")
-            local bar = content:FindFirstChild("Bar")
-            local barLabel = bar and bar:FindFirstChild("Label")
+        local content = frame:FindFirstChild("Content")
+        if not content then
+            log("Content not found", false)
+            wait(1)
+            continue
+        end
 
-            if label and barLabel then
-                log(string.format("Found quest: %s (Progress: %s)", label.Text, barLabel.Text), false)
-                return label.Text, barLabel.Text
+        local tasks = content:FindFirstChild("Tasks")
+        if not tasks then
+            log("Tasks folder not found", false)
+            wait(1)
+            continue
+        end
+
+        -- Search through all templates
+        for _, template in ipairs(tasks:GetChildren()) do
+            if template.Name == "Template" then
+                local contentFrame = template:FindFirstChild("Content")
+                if contentFrame then
+                    local label = contentFrame:FindFirstChild("Label")
+                    local bar = contentFrame:FindFirstChild("Bar")
+                    local barLabel = bar and bar:FindFirstChild("Label")
+
+                    if label and barLabel then
+                        local questText = label.Text
+                        local progress = barLabel.Text
+                        
+                        -- Only return if it's an egg quest
+                        if string.find(string.lower(questText), "hatch") then
+                            log(string.format("Found egg quest: %s (Progress: %s)", questText, progress), false)
+                            return questText, progress
+                        else
+                            log(string.format("Ignoring non-egg quest: %s", questText), false)
+                        end
+                    end
+                end
             end
         end
+        
+        log("No active egg quests found - waiting...", false)
+        wait(1)
     end
-    
-    log("No valid quest templates found", false)
-    return nil, "0%"
 end
 
 -- Walking function with error handling
@@ -232,9 +258,9 @@ local function doNeonEgg()
     local startTime = tick()
     
     while not done and tick() - startTime < 300 do -- 5 minute timeout
-        local questText, progress = getQuestInfo()
+        local questText, progress = getEggQuestInfo()
         
-        if not questText or not string.find(questText:lower(), "hatch") then
+        if not string.find(questText:lower(), "hatch") then
             log("No hatch quest detected", false)
             break
         end
@@ -287,22 +313,14 @@ local function getEggName(questText)
     return nil
 end
 
--- Main function to handle egg quests with full error handling
+-- Main function to handle egg quests
 local function handleEggQuest()
-    log("Checking for active quests...", false)
+    log("Checking for egg quests...", false)
     
-    local questText, progress = getQuestInfo()
-    if not questText then
-        log("No quest text found", false)
-        return false
-    end
-    
-    if not string.find(questText:lower(), "hatch") then
-        log("Current quest is not an egg quest: "..tostring(questText), false)
-        return false
-    end
-    
+    -- This will wait until an egg quest is found
+    local questText, progress = getEggQuestInfo()
     local eggName = getEggName(questText)
+    
     if not eggName then
         log("Could not determine egg name from quest", true)
         return false
@@ -325,9 +343,9 @@ local function handleEggQuest()
     local startTime = tick()
     
     while not done and tick() - startTime < 300 do -- 5 minute timeout
-        local currentQuest, currentProgress = getQuestInfo()
+        local currentQuest, currentProgress = getEggQuestInfo()
         
-        if not currentQuest or not string.find(currentQuest:lower(), "hatch") then
+        if not string.find(currentQuest:lower(), "hatch") then
             log("Quest changed or no longer available", false)
             break
         end
@@ -362,18 +380,6 @@ while true do
         log("Critical error in handleEggQuest: "..tostring(err), true)
     end
     
-    -- Wait before checking again
-    for i = 1, 10 do -- Check every second but break if character changes
-        if not character or not character.Parent then
-            log("Character no longer valid - attempting to reinitialize", true)
-            character = initializeCharacter()
-            if character then
-                humanoid = character:FindFirstChildOfClass("Humanoid")
-                if humanoid then
-                    humanoid.WalkSpeed = WALK_SPEED
-                end
-            end
-        end
-        wait(0.1)
-    end
+    -- Brief wait before checking again
+    wait(0.5)
 end
