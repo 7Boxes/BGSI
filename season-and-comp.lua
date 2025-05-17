@@ -57,7 +57,7 @@ local function moveToPosition(targetPosition)
         local direction = (targetPosition - rootPart.Position).Unit
         local moveStep = direction * MOVE_SPEED * 0.1
         
-        -- Move while maintaining current Y position (height)
+        -- Move while maintaining current Y position
         rootPart.CFrame = CFrame.new(rootPart.Position + Vector3.new(moveStep.X, 0, moveStep.Z))
         
         -- Check if stuck
@@ -169,9 +169,17 @@ local function processQuest()
         return false
     end
     
-    -- Check for Shiny quest (hatch Infinity Egg)
-    if string.find(string.lower(questText or ""), "shiny") then
-        log("Processing Shiny quest - hatching Infinity Egg", false)
+    if not questText then
+        log("No quest text found", false)
+        return false
+    end
+    
+    -- Convert to lowercase for easier matching
+    local questTextLower = string.lower(questText)
+    
+    -- Check for Pet quest (hatch Infinity Egg)
+    if string.find(questTextLower, "pet") then
+        log("Processing Pet quest - hatching Infinity Egg", false)
         
         -- Move to Infinity Egg
         if not moveToPosition(EGG_DATA["Infinity"]) then
@@ -184,8 +192,8 @@ local function processQuest()
         while tick() - startTime < 300 do
             local currentType, currentText, currentProgress = getCurrentQuest()
             
-            -- Stop if quest changed or no longer contains "Shiny"
-            if not currentText or not string.find(string.lower(currentText), "shiny") then break end
+            -- Stop if quest changed or no longer contains "Pet"
+            if not currentText or not string.find(string.lower(currentText), "pet") then break end
             
             hatchEgg("Infinity")
             
@@ -203,57 +211,49 @@ local function processQuest()
         return true
     end
     
-    -- Skip if doesn't specify egg type
-    if not string.find(questText or "", "Hatch %d+ %a+ Eggs") then
-        log("Skipping generic quest", false)
-        return false
-    end
-    
-    log("Processing quest: "..(questText or "nil"), false)
-    
-    -- Extract egg name
-    local eggName = string.match(questText or "", "Hatch %d+ (%a+) Eggs")
-    if not eggName or not EGG_DATA[eggName] then
-        log("Invalid egg name in quest", true)
-        return false
-    end
-    
-    log("Found target egg: "..eggName, false)
-    
-    -- Special Neon handling
-    if eggName == "Neon" then
-        return handleNeonEgg()
-    end
-    
-    -- Move to egg
-    if not moveToPosition(EGG_DATA[eggName]) then
-        log("Failed to reach egg", true)
-        return false
-    end
-    
-    -- Hatch until complete
-    local startTime = tick()
-    while tick() - startTime < 300 do
-        local currentType, currentText, currentProgress = getCurrentQuest()
-        
-        -- Stop if quest changed
-        if not currentText or not string.find(currentText, eggName) then break end
-        
-        hatchEgg(eggName)
-        
-        if currentProgress == "100%" then
-            local finishTime = tick()
-            while tick() - finishTime < FINAL_HATCH_DELAY do
+    -- Check for specific egg quests
+    for eggName, _ in pairs(EGG_DATA) do
+        if string.find(questText, eggName) then
+            log("Found egg quest for: "..eggName, false)
+            
+            -- Special Neon handling
+            if eggName == "Neon" then
+                return handleNeonEgg()
+            end
+            
+            -- Move to egg
+            if not moveToPosition(EGG_DATA[eggName]) then
+                log("Failed to reach "..eggName.." Egg", true)
+                return false
+            end
+            
+            -- Hatch until complete
+            local startTime = tick()
+            while tick() - startTime < 300 do
+                local currentType, currentText, currentProgress = getCurrentQuest()
+                
+                -- Stop if quest changed
+                if not currentText or not string.find(currentText, eggName) then break end
+                
                 hatchEgg(eggName)
+                
+                if currentProgress == "100%" then
+                    local finishTime = tick()
+                    while tick() - finishTime < FINAL_HATCH_DELAY do
+                        hatchEgg(eggName)
+                        wait(HATCH_INTERVAL)
+                    end
+                    break
+                end
+                
                 wait(HATCH_INTERVAL)
             end
-            break
+            return true
         end
-        
-        wait(HATCH_INTERVAL)
     end
     
-    return true
+    log("Skipping unrecognized quest: "..questText, false)
+    return false
 end
 
 -- Main loop
