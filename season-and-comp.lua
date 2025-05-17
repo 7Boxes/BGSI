@@ -6,6 +6,7 @@ local HORIZONTAL_SPEED = 36 -- Studs per second for X/Z movement
 local Y_TWEEN_TIME = 1 -- Fixed 1 second for Y-axis movement
 local DEBUG_LOGGING = true -- Detailed logging
 local WALK_SPEED = 16 -- Normal walking speed
+local SKIP_UNRECOGNIZED_QUESTS = true -- Enable/disable auto-skipping unrecognized quests
 
 -- Enhanced Teleport Settings
 local TELEPORT = {
@@ -225,6 +226,19 @@ local function hatchEgg(eggName)
     RemoteEvent:FireServer(unpack(args))
 end
 
+-- Function to skip competitive quests
+local function skipCompetitiveQuest()
+    if not SKIP_UNRECOGNIZED_QUESTS then return end
+    
+    local args = {
+        "CompetitiveRetail",
+        4
+    }
+    
+    RemoteEvent:FireServer(unpack(args))
+    if DEBUG_LOGGING then log("Attempted to skip unrecognized quest", false) end
+end
+
 -- Special Neon Egg handler with improved movement
 local function handleNeonEgg()
     log("Starting Neon Egg process", false)
@@ -355,7 +369,9 @@ local function processQuest()
         end
     end
     
+    -- Handle unrecognized quests
     if DEBUG_LOGGING then log("Skipping unrecognized quest: "..tostring(questText), false) end
+    skipCompetitiveQuest()
     return false
 end
 
