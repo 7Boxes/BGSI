@@ -44,7 +44,7 @@ local EGG_DATA = {
     ["Mining"] = Vector3.new(-121.83, 16.45, -67.70),
     ["Cyber"] = Vector3.new(-92.24, 16.11, -66.20),
     ["Infinity"] = Vector3.new(-104.93, 18.63, -28.01),
-    ["Neon"] = Vector3.new(9883.46, 20095.29, 264.75) -- Special egg
+    ["Neon"] = Vector3.new(9883.17, 20095.92, 265.26) -- Updated precise Neon Egg position
 }
 
 -- Services
@@ -71,7 +71,7 @@ local function log(message, isError)
     print(string.format("%s [%s] %s", prefix, timestamp, tostring(message)))
 end
 
--- Enhanced teleport with position monitoring
+-- Enhanced teleport with position monitoring and rotation fix
 local function smartTeleport(destination)
     local originalPos = rootPart.Position
     if DEBUG_LOGGING then log("Attempting teleport to "..destination.name.." from position: "..tostring(originalPos), false) end
@@ -87,6 +87,12 @@ local function smartTeleport(destination)
         if SPAM_SETTINGS.attempts % 5 == 0 then
             if (rootPart.Position - originalPos).Magnitude > SPAM_SETTINGS.position_threshold then
                 if DEBUG_LOGGING then log("Teleport successful after "..SPAM_SETTINGS.attempts.." attempts", false) end
+                
+                -- Reset character rotation after teleport
+                rootPart.CFrame = CFrame.new(rootPart.Position) * CFrame.Angles(0, math.rad(180), 0)
+                humanoid.Jump = true
+                wait(0.5)
+                
                 return true
             end
         end
@@ -98,7 +104,7 @@ local function smartTeleport(destination)
     return false
 end
 
--- Improved tween movement function
+-- Improved tween movement function for regular eggs
 local function moveToPosition(targetPosition)
     -- First, move to ground level (Y = 0) while keeping X/Z - fixed 1 second
     local groundPosition = Vector3.new(rootPart.Position.X, 0, rootPart.Position.Z)
@@ -112,7 +118,7 @@ local function moveToPosition(targetPosition)
     tween1:Play()
     tween1.Completed:Wait()
     
-    -- Next, move to target X/Z at ground level
+    -- Next, move to target X/Z at ground level - uses configurable horizontal speed
     local midPosition = Vector3.new(targetPosition.X, 0, targetPosition.Z)
     local horizontalDistance = (groundPosition - midPosition).Magnitude
     local horizontalTime = horizontalDistance / HORIZONTAL_SPEED
@@ -126,7 +132,7 @@ local function moveToPosition(targetPosition)
     tween2:Play()
     tween2.Completed:Wait()
     
-    -- Finally, move up to target Y position
+    -- Finally, move up to target Y position - fixed 1 second
     local finalPosition = Vector3.new(targetPosition.X, targetPosition.Y + 3, targetPosition.Z)
     
     local tweenInfo3 = TweenInfo.new(
@@ -145,7 +151,35 @@ local function moveToPosition(targetPosition)
     return true
 end
 
--- Get current quest info
+-- Special movement function for Neon Egg with rotation control
+local function moveToNeonEgg()
+    local targetPos = EGG_DATA["Neon"]
+    humanoid.WalkSpeed = WALK_SPEED
+    
+    -- Face the correct direction before moving
+    local lookVector = (targetPos - rootPart.Position).Unit
+    rootPart.CFrame = CFrame.new(rootPart.Position, rootPart.Position + lookVector)
+    
+    -- Move to target
+    humanoid:MoveTo(targetPos)
+    
+    -- Wait until arrived or timeout
+    local startTime = tick()
+    while (rootPart.Position - targetPos).Magnitude > 3 and tick() - startTime < 30 do
+        -- Continuously ensure proper rotation
+        rootPart.CFrame = CFrame.new(rootPart.Position, targetPos)
+        wait(0.1)
+    end
+    
+    -- Final position adjustment
+    rootPart.CFrame = CFrame.new(targetPos) * CFrame.Angles(0, math.rad(180), 0)
+    humanoid.Jump = true
+    wait(0.5)
+    
+    return (rootPart.Position - targetPos).Magnitude <= 3
+end
+
+-- Get current quest info with nil checks
 local function getCurrentQuest()
     local success, gui = pcall(function() return player.PlayerGui.ScreenGui end)
     if not success or not gui then return nil, nil, nil end
@@ -191,7 +225,7 @@ local function hatchEgg(eggName)
     RemoteEvent:FireServer(unpack(args))
 end
 
--- Special Neon Egg handler
+-- Special Neon Egg handler with improved movement
 local function handleNeonEgg()
     log("Starting Neon Egg process", false)
     
@@ -201,18 +235,14 @@ local function handleNeonEgg()
         return false
     end
     
-    -- Walk to Neon Egg (no tweening)
-    local targetPos = EGG_DATA["Neon"]
-    humanoid:MoveTo(targetPos)
-    
-    -- Wait until we reach the egg or timeout
-    local startTime = tick()
-    while (rootPart.Position - targetPos).Magnitude > 5 and tick() - startTime < 30 do
-        wait(0.1)
+    -- Walk to Neon Egg with rotation fixes
+    if not moveToNeonEgg() then
+        log("Failed to reach Neon Egg position", true)
+        return false
     end
     
     -- Hatch until complete
-    startTime = tick()
+    local startTime = tick()
     while tick() - startTime < 300 do
         local questType, questText, progress = getCurrentQuest()
         
