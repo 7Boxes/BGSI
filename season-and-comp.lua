@@ -5,10 +5,27 @@ local HATCH_INTERVAL = 0.2 -- Time between hatches
 local HORIZONTAL_SPEED = 36 -- Studs per second for X/Z movement
 local Y_TWEEN_TIME = 1 -- Fixed 1 second for Y-axis movement
 local DEBUG_LOGGING = true -- Detailed logging
-local TELEPORT_DELAY = 5 -- Seconds to wait after teleporting
-local TELEPORT_SPAM_COUNT = 10 -- Times to spam teleport per second
-local TELEPORT_SPAM_DURATION = 5 -- Seconds to spam teleports
 local WALK_SPEED = 16 -- Normal walking speed
+
+-- Enhanced Teleport Settings
+local TELEPORT = {
+    NEON = {
+        args = {"Teleport", "Workspace.Worlds.Minigame Paradise.Islands.Hyperwave Island.Island.Portal.Spawn"},
+        name = "Neon Island"
+    },
+    OVERWORLD = {
+        args = {"Teleport", "Workspace.Worlds.The Overworld.FastTravel.Spawn"},
+        name = "Overworld"
+    }
+}
+
+local SPAM_SETTINGS = {
+    attempts = 0,
+    max_attempts = 50,
+    delay = 0.05, -- 50ms between attempts (~20/sec)
+    timeout = 10, -- Max seconds to try
+    position_threshold = 5 -- Distance change required
+}
 
 -- Egg data with coordinates
 local EGG_DATA = {
@@ -54,7 +71,34 @@ local function log(message, isError)
     print(string.format("%s [%s] %s", prefix, timestamp, tostring(message)))
 end
 
--- Improved tween movement function with fixed Y-axis tween time
+-- Enhanced teleport with position monitoring
+local function smartTeleport(destination)
+    local originalPos = rootPart.Position
+    if DEBUG_LOGGING then log("Attempting teleport to "..destination.name.." from position: "..tostring(originalPos), false) end
+    
+    local startTime = os.clock()
+    SPAM_SETTINGS.attempts = 0
+    
+    while os.clock() - startTime < SPAM_SETTINGS.timeout and SPAM_SETTINGS.attempts < SPAM_SETTINGS.max_attempts do
+        RemoteEvent:FireServer(unpack(destination.args))
+        SPAM_SETTINGS.attempts += 1
+        
+        -- Check for position change every 5 attempts
+        if SPAM_SETTINGS.attempts % 5 == 0 then
+            if (rootPart.Position - originalPos).Magnitude > SPAM_SETTINGS.position_threshold then
+                if DEBUG_LOGGING then log("Teleport successful after "..SPAM_SETTINGS.attempts.." attempts", false) end
+                return true
+            end
+        end
+        
+        wait(SPAM_SETTINGS.delay)
+    end
+    
+    if DEBUG_LOGGING then log("Teleport failed after "..SPAM_SETTINGS.attempts.." attempts", true) end
+    return false
+end
+
+-- Improved tween movement function
 local function moveToPosition(targetPosition)
     -- First, move to ground level (Y = 0) while keeping X/Z - fixed 1 second
     local groundPosition = Vector3.new(rootPart.Position.X, 0, rootPart.Position.Z)
@@ -68,7 +112,7 @@ local function moveToPosition(targetPosition)
     tween1:Play()
     tween1.Completed:Wait()
     
-    -- Next, move to target X/Z at ground level - uses configurable horizontal speed
+    -- Next, move to target X/Z at ground level
     local midPosition = Vector3.new(targetPosition.X, 0, targetPosition.Z)
     local horizontalDistance = (groundPosition - midPosition).Magnitude
     local horizontalTime = horizontalDistance / HORIZONTAL_SPEED
@@ -82,7 +126,7 @@ local function moveToPosition(targetPosition)
     tween2:Play()
     tween2.Completed:Wait()
     
-    -- Finally, move up to target Y position - fixed 1 second
+    -- Finally, move up to target Y position
     local finalPosition = Vector3.new(targetPosition.X, targetPosition.Y + 3, targetPosition.Z)
     
     local tweenInfo3 = TweenInfo.new(
@@ -101,39 +145,7 @@ local function moveToPosition(targetPosition)
     return true
 end
 
--- Enhanced teleport function with aggressive spamming
-local function aggressiveTeleport(location)
-    local args = {
-        "Teleport",
-        location
-    }
-    
-    -- Calculate interval between spams (10 times per second)
-    local spamInterval = 1/TELEPORT_SPAM_COUNT
-    
-    -- Spam teleport for the duration
-    local startTime = tick()
-    while tick() - startTime < TELEPORT_SPAM_DURATION do
-        RemoteEvent:FireServer(unpack(args))
-        wait(spamInterval)
-    end
-    
-    -- Additional safety wait
-    wait(TELEPORT_DELAY)
-    return true
-end
-
--- Teleport to Neon Island with new spamming system
-local function teleportToNeonIsland()
-    return aggressiveTeleport("Workspace.Worlds.MinigameParadise.Islands.HyperwaveIsland.Island.Portal.Spawn")
-end
-
--- Teleport back to Overworld with new spamming system
-local function teleportToOverworld()
-    return aggressiveTeleport("Workspace.Worlds.The Overworld.FastTravel.Spawn")
-end
-
--- Get current quest info with nil checks
+-- Get current quest info
 local function getCurrentQuest()
     local success, gui = pcall(function() return player.PlayerGui.ScreenGui end)
     if not success or not gui then return nil, nil, nil end
@@ -179,17 +191,17 @@ local function hatchEgg(eggName)
     RemoteEvent:FireServer(unpack(args))
 end
 
--- Special Neon Egg handler with enhanced teleport
+-- Special Neon Egg handler
 local function handleNeonEgg()
     log("Starting Neon Egg process", false)
     
-    -- Teleport to Hyperwave Island with aggressive spamming
-    if not teleportToNeonIsland() then
+    -- Teleport to Hyperwave Island with smart teleport
+    if not smartTeleport(TELEPORT.NEON) then
         log("Failed to teleport to Neon Island", true)
         return false
     end
     
-    -- Walk to Neon Egg (no tweening for Neon egg)
+    -- Walk to Neon Egg (no tweening)
     local targetPos = EGG_DATA["Neon"]
     humanoid:MoveTo(targetPos)
     
@@ -220,8 +232,8 @@ local function handleNeonEgg()
         wait(HATCH_INTERVAL)
     end
     
-    -- Return to Overworld with aggressive spamming
-    if not teleportToOverworld() then
+    -- Return to Overworld with smart teleport
+    if not smartTeleport(TELEPORT.OVERWORLD) then
         log("Failed to teleport back to Overworld", true)
         return false
     end
