@@ -6,8 +6,15 @@ local HORIZONTAL_SPEED = 36
 local DEBUG_LOGGING = true
 local WALK_SPEED = 16
 local SKIP_UNRECOGNIZED_QUESTS = true
-local HOVER_HEIGHT = 0 -- Y position to maintain
-local ANTI_FALL_FORCE = Vector3.new(0, 196.2, 0) -- Upward force to prevent falling
+local HOVER_HEIGHT = 0
+local ANTI_FALL_FORCE = Vector3.new(0, 196.2, 0)
+
+-- Eggs to automatically skip (add/remove as needed)
+local EGGS_TO_SKIP = {
+    "Common",    -- Example eggs to skip
+    "Spotted",   -- Add any eggs you want to auto-skip
+    "Neon"       -- Placeholder - remove if you want to hatch Neon eggs
+}
 
 -- Teleport Settings
 local TELEPORT = {
@@ -46,7 +53,7 @@ local EGG_DATA = {
     ["Mining"] = Vector3.new(-121.83, HOVER_HEIGHT, -67.70),
     ["Cyber"] = Vector3.new(-92.24, HOVER_HEIGHT, -66.20),
     ["Infinity"] = Vector3.new(-104.93, HOVER_HEIGHT, -28.01),
-    ["Neon"] = Vector3.new(9883.17, 20095.92, 265.26) -- Only Neon keeps Y value
+    ["Neon"] = Vector3.new(9883.17, 20095.92, 265.26)
 }
 
 -- Services
@@ -93,6 +100,33 @@ local function enableAntiFall()
     end)
 end
 
+-- Enhanced skip function
+local function skipCompetitiveQuest(questText)
+    if not SKIP_UNRECOGNIZED_QUESTS then 
+        return false 
+    end
+    
+    -- Skip specific egg quests
+    for _, eggName in ipairs(EGGS_TO_SKIP) do
+        if questText and string.find(tostring(questText), eggName) then
+            log("Skipping "..eggName.." egg quest", false)
+            RemoteEvent:FireServer("CompetitiveRetail", 4)
+            wait(0.5)
+            return true
+        end
+    end
+    
+    -- Skip generic unrecognized quests
+    if questText then
+        log("Skipping unrecognized quest: "..tostring(questText), false)
+    else
+        log("Skipping quest (no text detected)", false)
+    end
+    RemoteEvent:FireServer("CompetitiveRetail", 4)
+    wait(0.5)
+    return true
+end
+
 -- Smart teleport with position verification
 local function smartTeleport(destination)
     local originalPos = rootPart.Position
@@ -132,6 +166,14 @@ end
 
 -- Special Neon Egg movement
 local function moveToNeonEgg()
+    -- Skip if Neon is in our skip list
+    for _, eggName in ipairs(EGGS_TO_SKIP) do
+        if eggName == "Neon" then
+            log("Neon egg is in skip list - aborting", false)
+            return false
+        end
+    end
+
     local targetPos = EGG_DATA["Neon"]
     humanoid.WalkSpeed = WALK_SPEED
     
@@ -189,14 +231,6 @@ local function hatchEgg(eggName)
     RemoteEvent:FireServer("HatchEgg", eggName.." Egg", HATCH_COUNT)
 end
 
--- Quest skipping
-local function skipCompetitiveQuest()
-    if SKIP_UNRECOGNIZED_QUESTS then
-        RemoteEvent:FireServer("CompetitiveRetail", 4)
-        log("Skipped unrecognized quest", false)
-    end
-end
-
 -- Neon Egg handler
 local function handleNeonEgg()
     log("Starting Neon Egg process", false)
@@ -226,14 +260,26 @@ end
 -- Main quest processor
 local function processQuest()
     local questType, questText, progress = getCurrentQuest()
-    if not questType or not questText then return false end
+    if not questType or not questText then 
+        skipCompetitiveQuest()
+        return false 
+    end
     
     if questType ~= "Repeatable" then
         log("Skipping non-repeatable quest", false)
+        skipCompetitiveQuest(questText)
         return false
     end
     
     local questTextLower = string.lower(tostring(questText))
+    
+    -- Check if this is an egg we should skip
+    for _, eggName in ipairs(EGGS_TO_SKIP) do
+        if string.find(questTextLower, string.lower(eggName)) then
+            skipCompetitiveQuest(questText)
+            return false
+        end
+    end
     
     -- Pet quest
     if string.find(questTextLower, "pet") then
@@ -290,8 +336,8 @@ local function processQuest()
         end
     end
     
-    log("Unrecognized quest: "..tostring(questText), false)
-    skipCompetitiveQuest()
+    -- Unrecognized quest
+    skipCompetitiveQuest(questText)
     return false
 end
 
