@@ -2,7 +2,8 @@
 local HATCH_COUNT = 6 -- Number for hatch remote
 local FINAL_HATCH_DELAY = 5 -- Extra seconds after 100%
 local HATCH_INTERVAL = 0.2 -- Time between hatches
-local MOVE_SPEED = 12 -- Studs per second (adjustable)
+local HORIZONTAL_SPEED = 36 -- Studs per second for X/Z movement (configurable)
+local Y_TWEEN_TIME = 1 -- Fixed 1 second for Y-axis movement
 local DEBUG_LOGGING = true -- Detailed logging
 
 -- Egg data with coordinates
@@ -28,12 +29,14 @@ local EGG_DATA = {
 -- Services
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 -- Player setup
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local rootPart = character:WaitForChild("HumanoidRootPart")
+humanoid.WalkSpeed = 16 -- Normal walking speed (for non-tween movement)
 
 -- Remote setup
 local RemoteEvent = ReplicatedStorage:WaitForChild("Shared")
@@ -47,32 +50,53 @@ local function log(message, isError)
     print(string.format("%s [%s] %s", prefix, timestamp, message))
 end
 
--- Simple movement function
+-- Improved tween movement function with fixed Y-axis tween time
 local function moveToPosition(targetPosition)
-    local startTime = tick()
-    local distance = (rootPart.Position - targetPosition).Magnitude
-    local moveTime = distance / MOVE_SPEED
+    -- First, move to ground level (Y = 0) while keeping X/Z - fixed 1 second
+    local groundPosition = Vector3.new(rootPart.Position.X, 0, rootPart.Position.Z)
     
-    while (rootPart.Position - targetPosition).Magnitude > 5 and tick() - startTime < moveTime + 5 do
-        local direction = (targetPosition - rootPart.Position).Unit
-        local moveStep = direction * MOVE_SPEED * 0.1
-        
-        -- Move while maintaining current Y position
-        rootPart.CFrame = CFrame.new(rootPart.Position + Vector3.new(moveStep.X, 0, moveStep.Z))
-        
-        -- Check if stuck
-        if tick() - startTime > moveTime * 1.5 then
-            log("Movement taking too long - jumping", true)
-            humanoid.Jump = true
-        end
-        
-        wait(0.1)
-    end
+    local tweenInfo1 = TweenInfo.new(
+        Y_TWEEN_TIME, -- Fixed 1 second for Y-axis movement
+        Enum.EasingStyle.Linear
+    )
     
-    return (rootPart.Position - targetPosition).Magnitude <= 5
+    local tween1 = TweenService:Create(rootPart, tweenInfo1, {Position = groundPosition})
+    tween1:Play()
+    tween1.Completed:Wait()
+    
+    -- Next, move to target X/Z at ground level - uses configurable horizontal speed
+    local midPosition = Vector3.new(targetPosition.X, 0, targetPosition.Z)
+    local horizontalDistance = (groundPosition - midPosition).Magnitude
+    local horizontalTime = horizontalDistance / HORIZONTAL_SPEED
+    
+    local tweenInfo2 = TweenInfo.new(
+        horizontalTime,
+        Enum.EasingStyle.Linear
+    )
+    
+    local tween2 = TweenService:Create(rootPart, tweenInfo2, {Position = midPosition})
+    tween2:Play()
+    tween2.Completed:Wait()
+    
+    -- Finally, move up to target Y position - fixed 1 second
+    local finalPosition = Vector3.new(targetPosition.X, targetPosition.Y + 3, targetPosition.Z) -- Adding 3 to Y to ensure we're above the egg
+    
+    local tweenInfo3 = TweenInfo.new(
+        Y_TWEEN_TIME, -- Fixed 1 second for Y-axis movement
+        Enum.EasingStyle.Linear
+    )
+    
+    local tween3 = TweenService:Create(rootPart, tweenInfo3, {Position = finalPosition})
+    tween3:Play()
+    tween3.Completed:Wait()
+    
+    -- Small jump to ensure we're properly positioned
+    humanoid.Jump = true
+    wait(0.2)
+    
+    return true
 end
 
--- Get current quest info
 local function getCurrentQuest()
     local success, gui = pcall(function() return player.PlayerGui.ScreenGui end)
     if not success then log("Failed to find ScreenGui", true) return nil, nil, nil end
@@ -125,7 +149,7 @@ local function handleNeonEgg()
     RemoteEvent:FireServer("Teleport", "Workspace.Worlds.MinigameParadise.Islands.HyperwaveIsland.Island.Portal.Spawn")
     wait(5)
     
-    -- Move to Neon Egg
+    -- Move to Neon Egg using tween
     if not moveToPosition(EGG_DATA["Neon"]) then 
         log("Failed to reach Neon Egg", true)
         return false 
@@ -181,7 +205,7 @@ local function processQuest()
     if string.find(questTextLower, "pet") then
         log("Processing Pet quest - hatching Infinity Egg", false)
         
-        -- Move to Infinity Egg
+        -- Move to Infinity Egg using tween
         if not moveToPosition(EGG_DATA["Infinity"]) then
             log("Failed to reach Infinity Egg", true)
             return false
@@ -221,7 +245,7 @@ local function processQuest()
                 return handleNeonEgg()
             end
             
-            -- Move to egg
+            -- Move to egg using tween
             if not moveToPosition(EGG_DATA[eggName]) then
                 log("Failed to reach "..eggName.." Egg", true)
                 return false
@@ -257,21 +281,23 @@ local function processQuest()
 end
 
 -- Main loop
-log("Egg Hatching Script Started (Speed: "..MOVE_SPEED.." studs/sec)", false)
+log("Egg Hatching Script Started (Tween Speed: "..WALK_SPEED.." studs/sec)", false)
 
--- Disable character collisions to prevent wall sticking
+-- Disable collisions for character
 for _, part in ipairs(character:GetDescendants()) do
     if part:IsA("BasePart") then
         part.CanCollide = false
     end
 end
 
+-- Keep disabling collision for new parts
 character.ChildAdded:Connect(function(child)
     if child:IsA("BasePart") then
         child.CanCollide = false
     end
 end)
 
+-- Main execution loop
 while true do
     local success, err = pcall(processQuest)
     if not success then
