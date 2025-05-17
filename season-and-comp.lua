@@ -2,12 +2,12 @@
 local HATCH_COUNT = 6 -- Number for hatch remote
 local FINAL_HATCH_DELAY = 5 -- Extra seconds after 100%
 local HATCH_INTERVAL = 0.2 -- Time between hatches
-local HORIZONTAL_SPEED = 36 -- Studs per second for X/Z movement (configurable)
+local HORIZONTAL_SPEED = 36 -- Studs per second for X/Z movement
 local Y_TWEEN_TIME = 1 -- Fixed 1 second for Y-axis movement
 local DEBUG_LOGGING = true -- Detailed logging
 local TELEPORT_DELAY = 5 -- Seconds to wait after teleporting
-local TELEPORT_RETRIES = 5 -- Number of times to trigger teleport
-local TELEPORT_RETRY_DELAY = 0.2 -- Seconds between teleport retries
+local TELEPORT_SPAM_COUNT = 10 -- Times to spam teleport per second
+local TELEPORT_SPAM_DURATION = 5 -- Seconds to spam teleports
 local WALK_SPEED = 16 -- Normal walking speed
 
 -- Egg data with coordinates
@@ -101,40 +101,36 @@ local function moveToPosition(targetPosition)
     return true
 end
 
--- Special teleport function for Neon Egg
-local function teleportToNeonIsland()
+-- Enhanced teleport function with aggressive spamming
+local function aggressiveTeleport(location)
     local args = {
         "Teleport",
-        "Workspace.Worlds.MinigameParadise.Islands.HyperwaveIsland.Island.Portal.Spawn"
+        location
     }
     
-    -- Trigger teleport multiple times with delay
-    for i = 1, TELEPORT_RETRIES do
+    -- Calculate interval between spams (10 times per second)
+    local spamInterval = 1/TELEPORT_SPAM_COUNT
+    
+    -- Spam teleport for the duration
+    local startTime = tick()
+    while tick() - startTime < TELEPORT_SPAM_DURATION do
         RemoteEvent:FireServer(unpack(args))
-        wait(TELEPORT_RETRY_DELAY)
+        wait(spamInterval)
     end
     
-    -- Wait the full delay after all teleports
+    -- Additional safety wait
     wait(TELEPORT_DELAY)
     return true
 end
 
--- Teleport back to Overworld
+-- Teleport to Neon Island with new spamming system
+local function teleportToNeonIsland()
+    return aggressiveTeleport("Workspace.Worlds.MinigameParadise.Islands.HyperwaveIsland.Island.Portal.Spawn")
+end
+
+-- Teleport back to Overworld with new spamming system
 local function teleportToOverworld()
-    local args = {
-        "Teleport",
-        "Workspace.Worlds.The Overworld.FastTravel.Spawn"
-    }
-    
-    -- Trigger teleport multiple times with delay
-    for i = 1, TELEPORT_RETRIES do
-        RemoteEvent:FireServer(unpack(args))
-        wait(TELEPORT_RETRY_DELAY)
-    end
-    
-    -- Wait the full delay after all teleports
-    wait(TELEPORT_DELAY)
-    return true
+    return aggressiveTeleport("Workspace.Worlds.The Overworld.FastTravel.Spawn")
 end
 
 -- Get current quest info with nil checks
@@ -183,11 +179,11 @@ local function hatchEgg(eggName)
     RemoteEvent:FireServer(unpack(args))
 end
 
--- Special Neon Egg handler with new teleport requirements
+-- Special Neon Egg handler with enhanced teleport
 local function handleNeonEgg()
     log("Starting Neon Egg process", false)
     
-    -- Teleport to Hyperwave Island with special process
+    -- Teleport to Hyperwave Island with aggressive spamming
     if not teleportToNeonIsland() then
         log("Failed to teleport to Neon Island", true)
         return false
@@ -224,7 +220,7 @@ local function handleNeonEgg()
         wait(HATCH_INTERVAL)
     end
     
-    -- Return to Overworld with special teleport process
+    -- Return to Overworld with aggressive spamming
     if not teleportToOverworld() then
         log("Failed to teleport back to Overworld", true)
         return false
@@ -322,7 +318,7 @@ local function processQuest()
 end
 
 -- Main loop
-log("Egg Hatching Script Started", false)
+log("Egg Hatching Script Started (Enhanced Teleport System)", false)
 
 -- Disable collisions for character
 for _, part in ipairs(character:GetDescendants()) do
