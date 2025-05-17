@@ -2,7 +2,7 @@
 local HATCH_COUNT = 6 -- Number for hatch remote
 local FINAL_HATCH_DELAY = 5 -- Extra seconds after 100%
 local HATCH_INTERVAL = 0.2 -- Time between hatches
-local TWEEN_SPEED = 12 -- Studs per second (adjustable)
+local MOVE_SPEED = 12 -- Studs per second (adjustable)
 local DEBUG_LOGGING = true -- Detailed logging
 
 -- Egg data with coordinates
@@ -28,7 +28,6 @@ local EGG_DATA = {
 -- Services
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 
 -- Player setup
 local player = Players.LocalPlayer
@@ -48,37 +47,29 @@ local function log(message, isError)
     print(string.format("%s [%s] %s", prefix, timestamp, message))
 end
 
--- Smooth movement with tween
+-- Simple movement function
 local function moveToPosition(targetPosition)
-    local distance = (rootPart.Position - targetPosition).Magnitude
-    local duration = distance / TWEEN_SPEED
-    
-    -- Create tween info
-    local tweenInfo = TweenInfo.new(
-        duration,
-        Enum.EasingStyle.Linear,
-        Enum.EasingDirection.InOut,
-        0,
-        false,
-        0
-    )
-    
-    -- Create and play tween
-    local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = CFrame.new(targetPosition)})
-    tween:Play()
-    
-    -- Wait for completion or timeout
     local startTime = tick()
-    while tween.PlaybackState == Enum.PlaybackState.Playing do
-        if tick() - startTime > duration + 5 then -- 5 second buffer
-            tween:Cancel()
-            log("Tween timeout reached", true)
-            return false
+    local distance = (rootPart.Position - targetPosition).Magnitude
+    local moveTime = distance / MOVE_SPEED
+    
+    while (rootPart.Position - targetPosition).Magnitude > 5 and tick() - startTime < moveTime + 5 do
+        local direction = (targetPosition - rootPart.Position).Unit
+        local moveStep = direction * MOVE_SPEED * 0.1
+        
+        -- Move while maintaining current Y position (height)
+        rootPart.CFrame = CFrame.new(rootPart.Position + Vector3.new(moveStep.X, 0, moveStep.Z))
+        
+        -- Check if stuck
+        if tick() - startTime > moveTime * 1.5 then
+            log("Movement taking too long - jumping", true)
+            humanoid.Jump = true
         end
+        
         wait(0.1)
     end
     
-    return true
+    return (rootPart.Position - targetPosition).Magnitude <= 5
 end
 
 -- Get current quest info
@@ -179,7 +170,7 @@ local function processQuest()
     end
     
     -- Check for Shiny quest (hatch Infinity Egg)
-    if string.find(questText:lower(), "shiny") then
+    if string.find(string.lower(questText or ""), "shiny") then
         log("Processing Shiny quest - hatching Infinity Egg", false)
         
         -- Move to Infinity Egg
@@ -194,7 +185,7 @@ local function processQuest()
             local currentType, currentText, currentProgress = getCurrentQuest()
             
             -- Stop if quest changed or no longer contains "Shiny"
-            if not currentText or not string.find(currentText:lower(), "shiny") then break end
+            if not currentText or not string.find(string.lower(currentText), "shiny") then break end
             
             hatchEgg("Infinity")
             
@@ -213,15 +204,15 @@ local function processQuest()
     end
     
     -- Skip if doesn't specify egg type
-    if not string.find(questText, "Hatch %d+ %a+ Eggs") then
+    if not string.find(questText or "", "Hatch %d+ %a+ Eggs") then
         log("Skipping generic quest", false)
         return false
     end
     
-    log("Processing quest: "..questText, false)
+    log("Processing quest: "..(questText or "nil"), false)
     
     -- Extract egg name
-    local eggName = string.match(questText, "Hatch %d+ (%a+) Eggs")
+    local eggName = string.match(questText or "", "Hatch %d+ (%a+) Eggs")
     if not eggName or not EGG_DATA[eggName] then
         log("Invalid egg name in quest", true)
         return false
@@ -266,7 +257,20 @@ local function processQuest()
 end
 
 -- Main loop
-log("Egg Hatching Script Started (Tween Speed: "..TWEEN_SPEED.." studs/sec)", false)
+log("Egg Hatching Script Started (Speed: "..MOVE_SPEED.." studs/sec)", false)
+
+-- Disable character collisions to prevent wall sticking
+for _, part in ipairs(character:GetDescendants()) do
+    if part:IsA("BasePart") then
+        part.CanCollide = false
+    end
+end
+
+character.ChildAdded:Connect(function(child)
+    if child:IsA("BasePart") then
+        child.CanCollide = false
+    end
+end)
 
 while true do
     local success, err = pcall(processQuest)
