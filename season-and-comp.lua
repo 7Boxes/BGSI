@@ -9,34 +9,15 @@ local SKIP_UNRECOGNIZED_QUESTS = true
 local HOVER_HEIGHT = 0
 local ANTI_FALL_FORCE = Vector3.new(0, 196.2, 0)
 
--- Eggs to automatically skip (add/remove as needed)
-local EGGS_TO_SKIP = {
-    "Common",    -- Example eggs to skip
-    "Spotted",   -- Add any eggs you want to auto-skip
-    "Neon"       -- Placeholder - remove if you want to hatch Neon eggs
-}
-
--- Teleport Settings
+-- Teleport Settings (only Overworld remains)
 local TELEPORT = {
-    NEON = {
-        args = {"Teleport", "Workspace.Worlds.Minigame Paradise.Islands.Hyperwave Island.Island.Portal.Spawn"},
-        name = "Neon Island"
-    },
     OVERWORLD = {
         args = {"Teleport", "Workspace.Worlds.The Overworld.FastTravel.Spawn"},
         name = "Overworld"
     }
 }
 
-local SPAM_SETTINGS = {
-    attempts = 0,
-    max_attempts = 50,
-    delay = 0.05,
-    timeout = 10,
-    position_threshold = 5
-}
-
--- Egg data (Y=0 for all except Neon)
+-- Egg data (Y=0 for all eggs)
 local EGG_DATA = {
     ["Common"] = Vector3.new(-12.40, HOVER_HEIGHT, -81.87),
     ["Spotted"] = Vector3.new(-12.63, HOVER_HEIGHT, -70.52),
@@ -52,8 +33,7 @@ local EGG_DATA = {
     ["Showman"] = Vector3.new(-130.84, HOVER_HEIGHT, -63.48),
     ["Mining"] = Vector3.new(-121.83, HOVER_HEIGHT, -67.70),
     ["Cyber"] = Vector3.new(-92.24, HOVER_HEIGHT, -66.20),
-    ["Infinity"] = Vector3.new(-104.93, HOVER_HEIGHT, -28.01),
-    ["Neon"] = Vector3.new(9883.17, 20095.92, 265.26)
+    ["Infinity"] = Vector3.new(-104.93, HOVER_HEIGHT, -28.01)
 }
 
 -- Services
@@ -100,20 +80,18 @@ local function enableAntiFall()
     end)
 end
 
--- Enhanced skip function
+-- Skip function with Neon detection
 local function skipCompetitiveQuest(questText)
     if not SKIP_UNRECOGNIZED_QUESTS then 
         return false 
     end
     
-    -- Skip specific egg quests
-    for _, eggName in ipairs(EGGS_TO_SKIP) do
-        if questText and string.find(tostring(questText), eggName) then
-            log("Skipping "..eggName.." egg quest", false)
-            RemoteEvent:FireServer("CompetitiveRetail", 4)
-            wait(0.5)
-            return true
-        end
+    -- Automatically skip any quest containing "Neon"
+    if questText and string.find(tostring(questText):lower(), "neon") then
+        log("Skipping Neon quest", false)
+        RemoteEvent:FireServer("CompetitiveRetail", 4)
+        wait(0.5)
+        return true
     end
     
     -- Skip generic unrecognized quests
@@ -125,28 +103,6 @@ local function skipCompetitiveQuest(questText)
     RemoteEvent:FireServer("CompetitiveRetail", 4)
     wait(0.5)
     return true
-end
-
--- Smart teleport with position verification
-local function smartTeleport(destination)
-    local originalPos = rootPart.Position
-    log("Attempting teleport to "..destination.name, false)
-    
-    local startTime = os.clock()
-    while os.clock() - startTime < SPAM_SETTINGS.timeout do
-        RemoteEvent:FireServer(unpack(destination.args))
-        wait(SPAM_SETTINGS.delay)
-        
-        if (rootPart.Position - originalPos).Magnitude > SPAM_SETTINGS.position_threshold then
-            log("Teleport successful", false)
-            rootPart.CFrame = CFrame.new(rootPart.Position) * CFrame.Angles(0, math.rad(180), 0)
-            humanoid.Jump = true
-            wait(0.5)
-            return true
-        end
-    end
-    log("Teleport failed", true)
-    return false
 end
 
 -- Simplified movement (Y=0 only)
@@ -161,35 +117,6 @@ local function moveToPosition(targetPos)
     tween.Completed:Wait()
     humanoid.Jump = true
     wait(0.2)
-    return true
-end
-
--- Special Neon Egg movement
-local function moveToNeonEgg()
-    -- Skip if Neon is in our skip list
-    for _, eggName in ipairs(EGGS_TO_SKIP) do
-        if eggName == "Neon" then
-            log("Neon egg is in skip list - aborting", false)
-            return false
-        end
-    end
-
-    local targetPos = EGG_DATA["Neon"]
-    humanoid.WalkSpeed = WALK_SPEED
-    
-    -- Face target and move
-    rootPart.CFrame = CFrame.new(rootPart.Position, targetPos)
-    humanoid:MoveTo(targetPos)
-    
-    local startTime = tick()
-    while (rootPart.Position - targetPos).Magnitude > 3 and tick() - startTime < 30 do
-        rootPart.CFrame = CFrame.new(rootPart.Position, targetPos)
-        wait(0.1)
-    end
-    
-    rootPart.CFrame = CFrame.new(targetPos) * CFrame.Angles(0, math.rad(180), 0)
-    humanoid.Jump = true
-    wait(0.5)
     return true
 end
 
@@ -231,32 +158,6 @@ local function hatchEgg(eggName)
     RemoteEvent:FireServer("HatchEgg", eggName.." Egg", HATCH_COUNT)
 end
 
--- Neon Egg handler
-local function handleNeonEgg()
-    log("Starting Neon Egg process", false)
-    if not smartTeleport(TELEPORT.NEON) then return false end
-    if not moveToNeonEgg() then return false end
-    
-    local startTime = tick()
-    while tick() - startTime < 300 do
-        local _, questText, progress = getCurrentQuest()
-        if not questText or not string.find(tostring(questText), "Neon") then break end
-        
-        hatchEgg("Neon")
-        if progress == "100%" then
-            local finishTime = tick()
-            while tick() - finishTime < FINAL_HATCH_DELAY do
-                hatchEgg("Neon")
-                wait(HATCH_INTERVAL)
-            end
-            break
-        end
-        wait(HATCH_INTERVAL)
-    end
-    
-    return smartTeleport(TELEPORT.OVERWORLD)
-end
-
 -- Main quest processor
 local function processQuest()
     local questType, questText, progress = getCurrentQuest()
@@ -273,12 +174,10 @@ local function processQuest()
     
     local questTextLower = string.lower(tostring(questText))
     
-    -- Check if this is an egg we should skip
-    for _, eggName in ipairs(EGGS_TO_SKIP) do
-        if string.find(questTextLower, string.lower(eggName)) then
-            skipCompetitiveQuest(questText)
-            return false
-        end
+    -- Auto-skip Neon quests
+    if string.find(questTextLower, "neon") then
+        skipCompetitiveQuest(questText)
+        return false
     end
     
     -- Pet quest
@@ -309,10 +208,6 @@ local function processQuest()
     for eggName, pos in pairs(EGG_DATA) do
         if string.find(tostring(questText), eggName) then
             log("Found egg quest: "..eggName, false)
-            
-            if eggName == "Neon" then
-                return handleNeonEgg()
-            end
             
             if not moveToPosition(pos) then return false end
             
